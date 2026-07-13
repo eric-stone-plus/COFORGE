@@ -98,11 +98,19 @@ function userFacingError(error: unknown) {
   return "这次分析没有成功。请换个角度追问，或指定要拆解的船货、煤种、航线、库存或配煤方案。";
 }
 
+function isStandaloneIntroduction(message: string) {
+  let normalized = message.toLowerCase().replace(/[，。！？,.!?\s]+/g, "");
+  normalized = normalized.replace(/^(?:请|麻烦|可以|能否|能不能)+/, "");
+  normalized = normalized.replace(/(?:吧|呀|啊|呢)+$/, "");
+  return /^(?:你好|您好|嗨|hi|hello|在吗|你是谁|介绍一下你自己|介绍下你自己)+$/i.test(normalized);
+}
+
 function fallbackAnswer(message: string, context: AgentContextTurn[], mode: "web-demo" | "desktop", reason?: string) {
   const lower = message.toLowerCase();
   const prior = context.at(-1);
   const priorText = `${prior?.question ?? ""} ${prior?.chartTitle ?? ""} ${prior?.explanation ?? ""}`.toLowerCase();
-  const text = `${lower} ${priorText}`;
+  const standaloneIntroduction = isStandaloneIntroduction(lower);
+  const text = standaloneIntroduction ? lower : `${lower} ${priorText}`;
 
   const desktopPrefix = reason
     ? "模型服务这次没有跑通，我先用本地合成煤炭样例和当前上下文给出可执行分析。"
@@ -112,7 +120,9 @@ function fallbackAnswer(message: string, context: AgentContextTurn[], mode: "web
 
   let explanation = `${prefix}COFORGE 的核心不是替代模型，而是把模型服务、schema、只读 SQL、查询结果和 token 预算放进一个本地煤炭运营分析工作台。配置模型服务和 key/token 后，本地桌面端会继续做实时查数和连续追问。`;
 
-  if (/船|vessel|cargo|eta|滞期|demurrage|延误|在途/.test(text)) {
+  if (standaloneIntroduction) {
+    explanation = `${prefix}在，我是 COFORGE 的本地煤炭运营分析助手。我可以围绕船货、航线运价、合同指数、配煤、换船和库存，用受控的只读 SQL 查询合成或已授权数据，并把数据结论、假设和证据链一起返回。`;
+  } else if (/船|vessel|cargo|eta|滞期|demurrage|延误|在途/.test(text)) {
     explanation = `${prefix}船货风险要先看状态、ETA、滞期天数和货量。delayed 船应优先确认卸港排队、滞期责任和补库影响；open/fixed 船则用于后续采购窗口和排产衔接。建议把高滞期船列为日更 watchlist，再结合库存覆盖天数判断是否需要替代采购。`;
   } else if (/库存|stock|cover|补库|yard/.test(text)) {
     explanation = `${prefix}库存不能只看总吨数，要拆到煤种、热值、硫灰和到港节奏。样例按 16,000 吨/日可估算覆盖天数，但真实业务应接入机组负荷、排产计划和在途船 ETA，才能判断是否缺低卡底仓或高卡调质煤。`;

@@ -52,6 +52,68 @@ beforeEach(() => {
 });
 
 describe("chat route cancellation", () => {
+  it("does not let prior business context contaminate a standalone introduction fallback", async () => {
+    mocks.getPublicSettings.mockReturnValueOnce({
+      mode: "desktop",
+      tokenPlan: { monthlyBudget: 100_000 },
+      provider: { configured: false, ready: false, model: "deepseek-v4-pro" },
+    });
+    const request = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Host: "localhost", Origin: "http://localhost" },
+      body: JSON.stringify({
+        message: "在吗，介绍一下你自己",
+        context: [{ question: "哪些航线的运价和拥堵风险最值得关注？", explanation: "船货风险清单" }],
+      }),
+    });
+    const { POST } = await import("../src/app/api/chat/route");
+
+    const response = await POST(request);
+    const body = await response.text();
+
+    expect(body).toContain("我是 COFORGE 的本地煤炭运营分析助手");
+    expect(body).not.toContain("船货风险要先看");
+    expect(mocks.runAgent).not.toHaveBeenCalled();
+  });
+
+  it("keeps a business question that begins with a greeting in the business fallback", async () => {
+    mocks.getPublicSettings.mockReturnValueOnce({
+      mode: "desktop",
+      tokenPlan: { monthlyBudget: 100_000 },
+      provider: { configured: false, ready: false, model: "deepseek-v4-pro" },
+    });
+    const request = new Request("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Host: "localhost", Origin: "http://localhost" },
+      body: JSON.stringify({ message: "你好，库存还能覆盖多少天？", context: [] }),
+    });
+    const { POST } = await import("../src/app/api/chat/route");
+
+    const response = await POST(request);
+    const body = await response.text();
+
+    expect(body).toContain("库存不能只看总吨数");
+    expect(body).not.toContain("我是 COFORGE 的本地煤炭运营分析助手");
+  });
+
+  it("recognizes polite standalone introductions without reusing business context", async () => {
+    mocks.getPublicSettings.mockReturnValue({
+      mode: "desktop",
+      tokenPlan: { monthlyBudget: 100_000 },
+      provider: { configured: false, ready: false, model: "deepseek-v4-pro" },
+    });
+    const { POST } = await import("../src/app/api/chat/route");
+
+    for (const message of ["请介绍一下你自己吧", "你是谁呀？"]) {
+      const response = await POST(new Request("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Host: "localhost", Origin: "http://localhost" },
+        body: JSON.stringify({ message, context: [{ question: "上一轮船货风险" }] }),
+      }));
+      await expect(response.text()).resolves.toContain("我是 COFORGE 的本地煤炭运营分析助手");
+    }
+  });
+
   it("propagates request cancellation and suppresses late progress, fallback, SQL, and status writes", async () => {
     let agentSignal: AbortSignal | undefined;
     mocks.runAgent.mockImplementation((_message, _context, progress, signal: AbortSignal) => {

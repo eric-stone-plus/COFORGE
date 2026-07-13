@@ -61,6 +61,44 @@ describe("provider URL guard", () => {
     await expect(validateProviderURL("http://example.com/v1")).rejects.toThrow(/HTTPS/);
   });
 
+  it("permits proxy fake-IP DNS only for exact official HTTPS providers in desktop mode", async () => {
+    const fakeIpLookup = async () => [{ address: "198.18.0.40", family: 4 }];
+    await expect(validateProviderURL("https://api.deepseek.com", fakeIpLookup)).rejects.toThrow(/private or reserved/);
+
+    process.env.COFORGE_DESKTOP = "1";
+    for (const providerURL of [
+      "https://api.deepseek.com",
+      "https://api.anthropic.com/v1",
+      "https://api.moonshot.cn/v1",
+      "https://api.openai.com:443/v1",
+    ]) {
+      await expect(validateProviderURL(providerURL, fakeIpLookup)).resolves.toMatchObject({
+        url: expect.any(URL),
+        addresses: [{ address: "198.18.0.40", family: 4 }],
+      });
+    }
+    await expect(validateProviderURL("https://api.deepseek.com.evil.example", fakeIpLookup)).rejects.toThrow(/private or reserved/);
+    await expect(validateProviderURL("https://example.com", fakeIpLookup)).rejects.toThrow(/private or reserved/);
+    await expect(validateProviderURL("https://api.deepseek.com:8443", fakeIpLookup)).rejects.toThrow(/private or reserved/);
+    await expect(validateProviderURL(
+      "https://api.deepseek.com",
+      async () => [{ address: "198.18.0.40", family: 4 }, { address: "10.0.0.8", family: 4 }],
+    )).rejects.toThrow(/private or reserved/);
+    await expect(validateProviderURL(
+      "https://api.deepseek.com",
+      async () => [{ address: "198.18.0.40", family: 4 }, { address: "8.8.8.8", family: 4 }],
+    )).rejects.toThrow(/private or reserved/);
+
+    expect(isPrivateOrReservedAddress("198.17.255.255")).toBe(false);
+    expect(isPrivateOrReservedAddress("198.20.0.0")).toBe(false);
+    for (const address of ["198.18.0.0", "198.19.255.255"]) {
+      await expect(validateProviderURL(
+        "https://api.deepseek.com",
+        async () => [{ address, family: 4 }],
+      )).resolves.toMatchObject({ addresses: [{ address, family: 4 }] });
+    }
+  });
+
   it("stops chunked responses that exceed the byte ceiling", async () => {
     const response = new UndiciResponse(Readable.from([
       new Uint8Array(5 * 1024 * 1024),

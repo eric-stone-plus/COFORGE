@@ -1,10 +1,14 @@
 import { lookup } from "dns/promises";
 import { isIP } from "net";
 import { Agent, buildConnector, fetch as undiciFetch } from "undici";
+import { knownProviderFromBaseURL } from "./provider-identity";
 
 const MAX_REDIRECTS = 3;
 const MAX_PROVIDER_RESPONSE_BYTES = 8 * 1024 * 1024;
 const BLOCKED_HOST_SUFFIXES = [".local", ".localhost", ".internal", ".home", ".lan"];
+
+type ResolvedAddress = { address: string; family: number };
+type ProviderAddressLookup = (hostname: string) => Promise<ResolvedAddress[]>;
 
 function ipv4Number(address: string) {
   return address.split(".").reduce((value, part) => (value << 8) + Number(part), 0) >>> 0;
@@ -107,7 +111,28 @@ function allowPrivateProviders() {
   return process.env.COFORGE_DESKTOP === "1" && process.env.COFORGE_ALLOW_PRIVATE_PROVIDER === "1";
 }
 
-export async function validateProviderURL(value: string | URL) {
+function isFakeIpAddress(address: string) {
+  return isIP(address) === 4 && inV4Range(address, "198.18.0.0", 15);
+}
+
+function allowOfficialProviderFakeIp(url: URL, addresses: ResolvedAddress[]) {
+  return process.env.COFORGE_DESKTOP === "1"
+    && url.protocol === "https:"
+    && (url.port === "" || url.port === "443")
+    && knownProviderFromBaseURL(url.toString()) !== undefined
+    && addresses.length > 0
+    && addresses.every(({ address }) => isFakeIpAddress(address));
+}
+
+const lookupProviderAddresses: ProviderAddressLookup = async (hostname) => lookup(hostname, {
+  all: true,
+  verbatim: true,
+});
+
+export async function validateProviderURL(
+  value: string | URL,
+  resolveAddresses: ProviderAddressLookup = lookupProviderAddresses,
+) {
   const url = value instanceof URL ? value : new URL(value);
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new Error("Provider URL must use HTTP or HTTPS");
@@ -120,7 +145,7 @@ export async function validateProviderURL(value: string | URL) {
 
   const addresses = isIP(hostname)
     ? [{ address: hostname, family: isIP(hostname) }]
-    : await lookup(hostname, { all: true, verbatim: true });
+    : await resolveAddresses(hostname);
   if (!addresses.length) throw new Error("Provider hostname did not resolve");
   const privateOptIn = allowPrivateProviders();
   const allPrivate = addresses.every(({ address }) => isPrivateOrReservedAddress(address));
@@ -129,7 +154,11 @@ export async function validateProviderURL(value: string | URL) {
   if (url.protocol === "http:" && (!privateOptIn || !allPrivate || (!literalPrivateHost && !explicitlyLocalHost))) {
     throw new Error("Provider URL must use HTTPS unless it is an explicit private desktop endpoint");
   }
-  if (!privateOptIn && addresses.some(({ address }) => isPrivateOrReservedAddress(address))) {
+  if (
+    !privateOptIn
+    && addresses.some(({ address }) => isPrivateOrReservedAddress(address))
+    && !allowOfficialProviderFakeIp(url, addresses)
+  ) {
     throw new Error("Provider URL resolves to a private or reserved address");
   }
 
