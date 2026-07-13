@@ -1,0 +1,116 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# logs
+logs/
+*.log
+.firecrawl/
+.playwright-cli/
+.coforge/
+
+# local env and credential files
+.env
+.env.*
+!.env.example
+.npmrc
+.pypirc
+.netrc
+credentials*.json
+id_rsa*
+id_ed25519*
+*.key
+*.p12
+*.pfx
+
+# vercel
+.vercel
+
+# railway local project link
+.railway/
+desktop/.runtime/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# SQLite WAL/SHM
+*.db
+*.sqlite
+*.sqlite3
+!data/coal-demo.db
+*.db-shm
+*.db-wal
+
+# Build artifacts
+*.app
+desktop/dist/
+outputs/
+/artifacts/
+
+# Python local environments
+.venv/
+venv/
+__pycache__/
+
+# Raw/private data downloads (not in repo)
+data/private/
+data/raw/
+data/company/
+
+# Internal generated review artifacts (not source)
+
+# Local working archive. The public GitHub repository is a source-code backup,
+# not a destination for internal reports, model inputs, or generated documents.
+/coal-balance-sheet/
+/coal-price/
+/knowledge-gems/
+/legacy/general-reports/
+/legacy/model-design/
+/project-overviews/
+/reports/
+/tools/
+/workflows/
+
+# Keep restorable private repository history outside the public worktree.
+/legacy/co-series/git-bundles/
+
+# Office archives are private by default. Add an explicit negation rule only
+# after a document has passed a publication review.
+*.7z
+*.bundle
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.doc
+*.docx
+*.ppt
+*.pptx
+!assets/COFORGE-Company-Pitch.pptx
+*.xls
+*.xlsx

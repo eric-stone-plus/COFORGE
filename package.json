@@ -1,0 +1,58 @@
+{
+  "name": "coforge",
+  "version": "0.1.0",
+  "private": false,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build && node scripts/sanitize-standalone.js",
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:public": "node scripts/check-public-boundary.js",
+    "smoke:deepseek": "node scripts/deepseek-live-smoke.js",
+    "smoke:reasonix": "node scripts/reasonix-runtime-smoke.js",
+    "sbom": "node scripts/generate-sbom.js",
+    "verify:sbom": "node scripts/verify-sbom.js artifacts/sbom/coforge.cdx.json",
+    "licenses:generate": "node scripts/generate-third-party-licenses.js",
+    "licenses:verify": "node scripts/verify-third-party-licenses.js",
+    "verify:reasonix": "node scripts/verify-reasonix-release.js",
+    "verify": "npm run check:public && npm run verify:reasonix && npm run lint && npm run typecheck && npm test && npm run build && npm run licenses:generate && npm run licenses:verify"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.8",
+    "@ai-sdk/openai-compatible": "^3.0.5",
+    "ai": "^7.0.14",
+    "better-sqlite3": "^12.11.1",
+    "next": "^15.5.20",
+    "node-sql-parser": "^5.4.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "recharts": "^3.9.1",
+    "undici": "^7.28.0"
+  },
+  "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "6.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/react-test-renderer": "^18.3.1",
+    "esbuild": "^0.28.1",
+    "eslint": "^8",
+    "eslint-config-next": "^15.5.20",
+    "postcss": "^8",
+    "react-test-renderer": "^18.3.1",
+    "spdx-license-list": "6.11.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
+  }
+}

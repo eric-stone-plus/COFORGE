@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "upstream": "esengine/DeepSeek-Reasonix",
+  "version": "1.17.11",
+  "tag": "v1.17.11",
+  "commit": "20a64b4d15687fbddb7ccc658daf909f71d01427",
+  "protocolVersion": 1,
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "licenseSha256": "dc024237821ac82056c37f8d82e3be919bd51e39a4529ec12a8ab3e2a346dc4c",
+  "assets": {
+    "darwin-x64": {
+      "archive": "reasonix-darwin-amd64.tar.gz",
+      "format": "tar.gz",
+      "archiveSha256": "5424abde113f91291d49b775b48ad92b5db0d0d78cf9a6a4577adb8a776bd107",
+      "binary": "reasonix",
+      "binarySha256": "f839fcc1b85539eb2bd8c921239c72570a02b8f38eec23d51b1987148c349adc"
+    },
+    "darwin-arm64": {
+      "archive": "reasonix-darwin-arm64.tar.gz",
+      "format": "tar.gz",
+      "archiveSha256": "2d10cf48643441fa854d878f036c62acb0d78eec6f5483f2469f113e2500d857",
+      "binary": "reasonix",
+      "binarySha256": "a7adba9ee65175e73a4218b2ffb78a3c09e81c5a47b59d6ceb153ba3bdab1ff6"
+    },
+    "linux-x64": {
+      "archive": "reasonix-linux-amd64.tar.gz",
+      "format": "tar.gz",
+      "archiveSha256": "109b90fb6421b6015614a19dfcdb2f38e825d90e5c658d8a9f25b0e89c58595d",
+      "binary": "reasonix",
+      "binarySha256": "65b1de073d7c4c6fb4d2a6b009e42987e2f7d3e300ba9a496f57966285d8b0c3"
+    },
+    "linux-arm64": {
+      "archive": "reasonix-linux-arm64.tar.gz",
+      "format": "tar.gz",
+      "archiveSha256": "7f6b89e30c128b5f3a9ab06f6d4d7c07cab2e2db21e7bb7a3d08c2bd44526147",
+      "binary": "reasonix",
+      "binarySha256": "2436ad221a4a8d6235c854eb2ee0a7e55a716aa6420db36f4b3a949118cc7e41"
+    },
+    "win32-x64": {
+      "archive": "reasonix-windows-amd64.zip",
+      "format": "zip",
+      "archiveSha256": "0cbf662cb24545a1a910796224659709d42899a956a9dc479b16e5a6a050d990",
+      "binary": "reasonix.exe",
+      "binarySha256": "7c7e68fbc9ea8187e6c01c17b139dfafa26ad65978684e99db2ef2e21a3b9b69"
+    },
+    "win32-arm64": {
+      "archive": "reasonix-windows-arm64.zip",
+      "format": "zip",
+      "archiveSha256": "6109b66ecb91da6184b8df63778589bd788f27789cc5e1a8418f82283d20e9bc",
+      "binary": "reasonix.exe",
+      "binarySha256": "ba5f232f62e78bd10a031f4569536fbfcca0bf9a5d51324fe3003d3c1e308460"
+    }
+  }
+}

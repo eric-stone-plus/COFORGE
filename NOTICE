@@ -1,0 +1,16 @@
+COFORGE
+Copyright 2026 COFORGE contributors
+
+This product is licensed under the Apache License, Version 2.0.
+
+The macOS desktop distribution bundles Reasonix v1.17.11 from
+esengine/DeepSeek-Reasonix (upstream commit
+20a64b4d15687fbddb7ccc658daf909f71d01427).
+Reasonix is Copyright (c) 2026 Reasonix Contributors and is licensed under
+the MIT License. Its full license text is distributed in the application as
+Resources/licenses/Reasonix-LICENSE.
+
+The macOS desktop distribution also bundles Node.js. Its upstream license
+text is distributed as Resources/licenses/Node-LICENSE.
+
+Development of COFORGE includes contributions made with OpenAI Codex.
