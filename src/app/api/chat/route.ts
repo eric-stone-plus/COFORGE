@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { type AgentContextTurn, runAgent, runConversationalAnswer } from "@/lib/agent";
+import { type AgentContextTurn, type AgentProgress, runAgent, runConversationalAnswer } from "@/lib/agent";
 import {
   isRequestBodyError,
   readBoundedJson,
@@ -13,8 +13,17 @@ import {
   isReasonixDeepSeekProvider,
   isReasonixDesktopEnabled,
   runDesktopReasonixTurn,
+  shutdownDesktopReasonixRuntime,
 } from "@/lib/reasonix/orchestrator";
 import { enforceApiRequest } from "@/lib/request-security";
+
+const REASONIX_EMPTY_RESPONSE_COOLDOWN_MS = 10 * 60_000;
+let reasonixEmptyResponseCircuitOpenedAt = 0;
+
+function isReasonixEmptyResponseCircuitOpen(now = Date.now()) {
+  return reasonixEmptyResponseCircuitOpenedAt > 0
+    && now - reasonixEmptyResponseCircuitOpenedAt < REASONIX_EMPTY_RESPONSE_COOLDOWN_MS;
+}
 
 function cleanContext(value: unknown): AgentContextTurn[] {
   if (!Array.isArray(value)) return [];
@@ -105,6 +114,11 @@ function isStandaloneIntroduction(message: string) {
   return /^(?:你好|您好|嗨|hi|hello|在吗|你是谁|介绍一下你自己|介绍下你自己)+$/i.test(normalized);
 }
 
+function isReasonixEmptyResponse(error: unknown) {
+  return error instanceof Error
+    && error.message.includes("Reasonix completed without an assistant message");
+}
+
 function fallbackAnswer(message: string, context: AgentContextTurn[], mode: "web-demo" | "desktop", reason?: string) {
   const lower = message.toLowerCase();
   const prior = context.at(-1);
@@ -183,6 +197,7 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         let useReasonix = false;
+        let directAttemptedConversational = false;
         let providerApiKey = "";
         function closeStream() {
           if (streamClosed) return;
@@ -200,6 +215,26 @@ export async function POST(request: Request) {
         function send(data: Record<string, unknown>) {
           assertActive();
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        }
+        function runDirectProvider() {
+          directAttemptedConversational = isStandaloneIntroduction(message);
+          const onProgress = (progress: AgentProgress) => {
+            send({ type: "progress", ...progress });
+          };
+          return directAttemptedConversational
+            ? runConversationalAnswer(message, context, onProgress, workSignal)
+            : runAgent(message, context, onProgress, workSignal);
+        }
+        function sendLocalFallback(error: unknown) {
+          assertActive();
+          if (settings.mode === "desktop" && settings.provider.ready) {
+            const providerError = compactProviderError(error, providerApiKey);
+            const lower = providerError.toLowerCase();
+            if (!lower.includes("budget") && !lower.includes("token budget")) {
+              updateProviderConnectionStatus("error", providerError);
+            }
+          }
+          send({ type: "result", ...fallbackAnswer(message, context, settings.mode, userFacingError(error)) });
         }
         const handleAbort = () => closeStream();
         workSignal.addEventListener("abort", handleAbort, { once: true });
@@ -225,7 +260,9 @@ export async function POST(request: Request) {
           const { getEffectiveProviderSettings } = await import("@/lib/local-settings");
           const provider = getEffectiveProviderSettings();
           providerApiKey = provider.apiKey;
-          useReasonix = isReasonixDesktopEnabled() && isReasonixDeepSeekProvider(provider);
+          useReasonix = !isReasonixEmptyResponseCircuitOpen()
+            && isReasonixDesktopEnabled()
+            && isReasonixDeepSeekProvider(provider);
           if (useReasonix) {
             if (!provider.apiKey) throw new Error("DeepSeek API key is not configured");
             send({ type: "progress", step: "analyzing", message: "Reasonix 正在分析并调用受控 COFORGE 工具..." });
@@ -240,9 +277,7 @@ export async function POST(request: Request) {
             return;
           }
 
-          const result = await runAgent(message, context, (progress) => {
-            send({ type: "progress", ...progress });
-          }, workSignal);
+          const result = await runDirectProvider();
           assertActive();
           if (settings.mode === "desktop") {
             updateProviderConnectionStatus("ok", `连接可用：${settings.provider.model}`);
@@ -268,19 +303,53 @@ export async function POST(request: Request) {
             }
 
             if (useReasonix) {
-              const reason = userFacingError(apiError);
               assertActive();
-              updateProviderConnectionStatus("error", compactProviderError(apiError, providerApiKey));
-              send({
-                type: "result",
-                ...fallbackAnswer(message, context, "desktop", reason),
-                runtime: {
-                  engine: "reasonix",
-                  status: "recoverable_error",
-                  usageUnavailable: true,
-                  evidenceUnavailable: true,
-                },
-              });
+              if (!isReasonixEmptyResponse(apiError)) {
+                const reason = userFacingError(apiError);
+                updateProviderConnectionStatus("error", compactProviderError(apiError, providerApiKey));
+                send({
+                  type: "result",
+                  ...fallbackAnswer(message, context, "desktop", reason),
+                  runtime: {
+                    engine: "reasonix",
+                    status: "recoverable_error",
+                    usageUnavailable: true,
+                    evidenceUnavailable: true,
+                  },
+                });
+                return;
+              }
+
+              reasonixEmptyResponseCircuitOpenedAt = Date.now();
+              await shutdownDesktopReasonixRuntime().catch(() => undefined);
+              assertActive();
+              send({ type: "progress", step: "analyzing", message: "Reasonix 未返回正文，正在切换到受预算保护的模型路径..." });
+              try {
+                const result = await runDirectProvider();
+                assertActive();
+                updateProviderConnectionStatus("ok", `连接可用：${settings.provider.model}；Reasonix 本轮已降级`);
+                send({
+                  type: "result",
+                  ...result,
+                  runtime: {
+                    engine: "direct-provider",
+                    status: "reasonix_fallback",
+                    reasonixError: compactProviderError(apiError, providerApiKey),
+                  },
+                });
+                return;
+              } catch (directError) {
+                if (workSignal.aborted || streamClosed || isAbortError(directError)) {
+                  if (!streamAbort.signal.aborted && isAbortError(directError)) streamAbort.abort(directError);
+                  return;
+                }
+                apiError = directError;
+                useReasonix = false;
+              }
+            }
+
+            if (directAttemptedConversational) {
+              sendLocalFallback(apiError);
               return;
             }
 
@@ -298,15 +367,7 @@ export async function POST(request: Request) {
                 if (!streamAbort.signal.aborted && isAbortError(fallbackError)) streamAbort.abort(fallbackError);
                 return;
               }
-              assertActive();
-              if (settings.mode === "desktop" && settings.provider.ready) {
-                const message = compactProviderError(fallbackError, providerApiKey);
-                const lower = message.toLowerCase();
-                if (!lower.includes("budget") && !lower.includes("token budget")) {
-                  updateProviderConnectionStatus("error", message);
-                }
-              }
-              send({ type: "result", ...fallbackAnswer(message, context, settings.mode, userFacingError(fallbackError)) });
+              sendLocalFallback(fallbackError);
             }
           }
         } finally {

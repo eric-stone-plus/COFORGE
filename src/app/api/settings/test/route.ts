@@ -3,7 +3,6 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { NextResponse } from "next/server";
 import { guardedProviderFetch } from "@/lib/provider-url-guard";
-import { isOfficialDeepSeekBaseURL } from "@/lib/provider-identity";
 import { compactProviderError } from "@/lib/provider-error";
 import { enforceApiRequest } from "@/lib/request-security";
 import {
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
 
   try {
     reservation = reserveTokenBudget(
-      estimateTokenCount(`${system}\n${prompt}`) + 12,
+      estimateTokenCount(`${system}\n${prompt}`) + 16,
       getPublicSettings().tokenPlan.monthlyBudget,
     );
     const { text, usage } = await generateText({
@@ -67,10 +66,7 @@ export async function POST(request: Request) {
       system,
       prompt,
       temperature: 0,
-      providerOptions: settings.backend === "openai-compatible" && isOfficialDeepSeekBaseURL(settings.baseURL)
-        ? { openaiCompatible: { reasoningEffort: "max" } }
-        : undefined,
-      maxOutputTokens: 12,
+      maxOutputTokens: 16,
       abortSignal: AbortSignal.timeout(Math.min(settings.timeoutMs, 15000)),
     });
     settleTokenReservation(reservation, {
@@ -79,14 +75,17 @@ export async function POST(request: Request) {
       totalTokens: usage?.totalTokens,
     });
     reservation = "";
+    if (!/^ok[.!]?$/i.test(text.trim())) {
+      throw new Error("Provider connection probe returned an empty or unexpected response");
+    }
 
-    const publicSettings = updateProviderConnectionStatus("ok", `连接可用：${settings.model}`);
+    const publicSettings = updateProviderConnectionStatus("ok", `基础连接可用：${settings.model}`);
     return NextResponse.json(
-      { ok: true, message: "连接可用", settings: publicSettings },
+      { ok: true, message: "基础连接可用", settings: publicSettings },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
-    releaseTokenReservation(reservation);
+    if (reservation) releaseTokenReservation(reservation);
     const message = compactProviderError(error, settings.apiKey) || "连接失败。";
     const publicSettings = updateProviderConnectionStatus("error", message);
     return NextResponse.json(

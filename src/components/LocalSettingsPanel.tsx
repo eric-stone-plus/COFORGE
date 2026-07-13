@@ -458,7 +458,8 @@ export default function LocalSettingsPanel({ refreshKey = 0 }: { refreshKey?: nu
                 <div className="h-full rounded-full" style={{ width: `${settings.usage.budgetPercent}%`, background: settings.usage.budgetPercent > 85 ? "var(--warning)" : "var(--accent)" }} />
               </div>
               {settings.usage.reservedTokens > 0 && <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>进行中预留：{formatInt(settings.usage.reservedTokens)} tokens</p>}
-              {settings.usage.reservationOverrunTokens > 0 && <p className="mt-1 text-[11px]" style={{ color: "var(--warning)" }}>模型上报用量曾超出预留：{formatInt(settings.usage.reservationOverrunTokens)} tokens；后续调用已受预算闸门限制。</p>}
+              {settings.usage.reservationOverrunTokens > 0 && <p className="mt-1 text-[11px]" style={{ color: "var(--warning)" }}>本月模型实际用量比预留累计多 {formatInt(settings.usage.reservationOverrunTokens)} tokens；差额已计入上方总量。</p>}
+              {settings.mode === "desktop" && serviceId === "deepseek" && <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>Reasonix beta 暂不回传精确 token 用量；上方总量仅统计可计量的模型调用。</p>}
             </div>
 
             <div className="rounded-lg border p-3" style={{ borderColor: "var(--border)", background: meta.bg }}>
