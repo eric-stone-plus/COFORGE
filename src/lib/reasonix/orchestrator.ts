@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import { constants as fsConstants } from "fs";
 import { access, lstat, mkdir, realpath } from "fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
@@ -326,13 +326,9 @@ function queryResultFromCalls(calls: ReasonixMcpEnvelope[]): {
   return {};
 }
 
-function credentialFingerprint(apiKey: string): string {
-  return createHash("sha256").update(apiKey).digest("hex");
-}
-
 export class ReasonixRuntimeOrchestrator {
   private client?: ReasonixRuntimeClient;
-  private apiKeyFingerprint?: string;
+  private activeApiKey?: string;
   private queue: Promise<void> = Promise.resolve();
   private activeTurn?: ActiveTurn;
   private stopping?: Promise<void>;
@@ -372,7 +368,7 @@ export class ReasonixRuntimeOrchestrator {
     if (!this.stopping) {
       const client = this.client;
       this.client = undefined;
-      this.apiKeyFingerprint = undefined;
+      this.activeApiKey = undefined;
       this.activeTurn = undefined;
       this.stopping = (async () => {
         await client?.stop();
@@ -436,11 +432,10 @@ export class ReasonixRuntimeOrchestrator {
   }
 
   private async ensureClient(apiKey: string): Promise<ReasonixRuntimeClient> {
-    const fingerprint = credentialFingerprint(apiKey);
-    if (this.client && this.apiKeyFingerprint !== fingerprint) {
+    if (this.client && this.activeApiKey !== apiKey) {
       await this.client.stop();
       this.client = undefined;
-      this.apiKeyFingerprint = undefined;
+      this.activeApiKey = undefined;
     }
 
     if (!this.client) {
@@ -453,7 +448,7 @@ export class ReasonixRuntimeOrchestrator {
         throw error;
       }
       this.client = client;
-      this.apiKeyFingerprint = fingerprint;
+      this.activeApiKey = apiKey;
       return client;
     }
 

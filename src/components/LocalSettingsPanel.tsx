@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { isOfficialDeepSeekBaseURL } from "@/lib/provider-identity";
+import { isOfficialDeepSeekBaseURL, knownProviderFromBaseURL } from "@/lib/provider-identity";
 
 type ProviderBackend = "auto" | "openai-compatible" | "anthropic";
 
@@ -119,17 +119,18 @@ function normalizeURL(value: string) {
 }
 
 function inferDraftProvider(baseURL: string, backend: ProviderBackend) {
-  const lower = normalizeURL(baseURL).toLowerCase();
-  if (backend === "anthropic" || lower.includes("anthropic.com")) {
+  const normalized = normalizeURL(baseURL);
+  const knownProvider = knownProviderFromBaseURL(normalized);
+  if (backend === "anthropic" || knownProvider === "anthropic") {
     return { backend: "anthropic" as ProviderBackend, model: "claude-sonnet-4-5", label: "Anthropic Messages API" };
   }
-  if (isOfficialDeepSeekBaseURL(normalizeURL(baseURL))) {
+  if (isOfficialDeepSeekBaseURL(normalized)) {
     return { backend: "openai-compatible" as ProviderBackend, model: "deepseek-v4-pro", label: "Chat Completions 兼容" };
   }
-  if (lower.includes("moonshot.cn")) {
+  if (knownProvider === "moonshot") {
     return { backend: "openai-compatible" as ProviderBackend, model: "moonshot-v1-8k", label: "Chat Completions 兼容" };
   }
-  if (lower.includes("openai.com")) {
+  if (knownProvider === "openai") {
     return { backend: "openai-compatible" as ProviderBackend, model: "gpt-4o-mini", label: "Chat Completions 兼容" };
   }
   if (backend === "openai-compatible") {

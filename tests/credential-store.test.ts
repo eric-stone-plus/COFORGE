@@ -102,6 +102,7 @@ describe("desktop system credential store", () => {
     expect(saved.credentialStore).toMatchObject({ backend: "macos-keychain", available: true });
     expect(settingsText()).not.toContain(secret);
     expect(JSON.parse(settingsText()).provider).not.toHaveProperty("apiKey");
+    expect(JSON.parse(settingsText()).provider.credentialBinding).toMatch(/^hmac-sha256:[a-f0-9]{64}:[a-f0-9]{64}$/);
     expect(settings.getEffectiveProviderSettings().apiKey).toBe(secret);
 
     const cleared = settings.updateLocalSettings({ provider: { clearApiKey: true } });

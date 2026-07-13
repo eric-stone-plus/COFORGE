@@ -269,6 +269,21 @@ describe("Reasonix desktop orchestration", () => {
     await orchestrator.stop();
   });
 
+  it("restarts the runtime when the in-memory API key changes", async () => {
+    const clients: FakeClient[] = [];
+    const orchestrator = new ReasonixRuntimeOrchestrator(configuration(), async (_key, onUpdate) => {
+      const client = new FakeClient(onUpdate);
+      clients.push(client);
+      return client;
+    });
+
+    await orchestrator.runTurn("first", { apiKey: "fixture-key-a", monthlyTokenBudget: 100 });
+    await orchestrator.runTurn("second", { apiKey: "fixture-key-b", monthlyTokenBudget: 100 });
+    expect(clients).toHaveLength(2);
+    expect(clients[0].pid).toBeUndefined();
+    await orchestrator.stop();
+  });
+
   it("refuses a turn when the monthly budget has no capacity", async () => {
     const { reserveTokenBudget } = await import("../src/lib/token-ledger");
     reserveTokenBudget(100, 100);

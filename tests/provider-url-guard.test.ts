@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Readable } from "stream";
 import { Response as UndiciResponse } from "undici";
 import { isPrivateOrReservedAddress, readBoundedProviderResponse, resolveProviderRedirect, validateProviderURL } from "../src/lib/provider-url-guard";
+import { knownProviderFromBaseURL } from "../src/lib/provider-identity";
 
 const env = { ...process.env };
 
@@ -10,6 +11,15 @@ afterEach(() => {
 });
 
 describe("provider URL guard", () => {
+  it("classifies known providers only by the parsed exact hostname", () => {
+    expect(knownProviderFromBaseURL("https://api.anthropic.com/v1")).toBe("anthropic");
+    expect(knownProviderFromBaseURL("https://api.openai.com/v1")).toBe("openai");
+    expect(knownProviderFromBaseURL("https://api.moonshot.cn/v1")).toBe("moonshot");
+    expect(knownProviderFromBaseURL("https://api.openai.com.evil.example/v1")).toBeUndefined();
+    expect(knownProviderFromBaseURL("https://evil.example/openai.com/v1")).toBeUndefined();
+    expect(knownProviderFromBaseURL("https://user@api.openai.com/v1")).toBeUndefined();
+  });
+
   it("recognizes private, metadata, loopback and documentation ranges", () => {
     for (const address of [
       "127.0.0.1", "10.2.3.4", "169.254.169.254", "192.168.1.2", "::1", "fd00::1", "2001:db8::1",

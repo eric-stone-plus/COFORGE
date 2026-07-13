@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "fs";
-import { createHash, randomUUID } from "crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import os from "os";
 import path from "path";
 import {
@@ -26,7 +26,7 @@ import {
   recordTokenUsageAtomic,
   resetTokenLedger,
 } from "./token-ledger";
-import { isOfficialDeepSeekBaseURL } from "./provider-identity";
+import { isOfficialDeepSeekBaseURL, knownProviderFromBaseURL } from "./provider-identity";
 
 type ProviderSource = "local" | "env" | "default";
 export type ProviderBackend = "auto" | "openai-compatible" | "anthropic";
@@ -159,9 +159,9 @@ function isProviderBackend(value: unknown): value is ProviderBackend {
 }
 
 function inferProviderFromBaseURL(baseURL: string, preferredBackend: ProviderBackend = "auto") {
-  const lower = baseURL.toLowerCase();
+  const knownProvider = knownProviderFromBaseURL(baseURL);
 
-  if (preferredBackend === "anthropic" || lower.includes("anthropic.com")) {
+  if (preferredBackend === "anthropic" || knownProvider === "anthropic") {
     return {
       backend: "anthropic" as ProviderBackend,
       providerName: "anthropic",
@@ -177,7 +177,7 @@ function inferProviderFromBaseURL(baseURL: string, preferredBackend: ProviderBac
       label: "Chat Completions-compatible",
     };
   }
-  if (lower.includes("moonshot.cn")) {
+  if (knownProvider === "moonshot") {
     return {
       backend: "openai-compatible" as ProviderBackend,
       providerName: DEFAULT_PROVIDER.providerName,
@@ -185,7 +185,7 @@ function inferProviderFromBaseURL(baseURL: string, preferredBackend: ProviderBac
       label: "Chat Completions-compatible",
     };
   }
-  if (lower.includes("openai.com")) {
+  if (knownProvider === "openai") {
     return {
       backend: "openai-compatible" as ProviderBackend,
       providerName: DEFAULT_PROVIDER.providerName,
@@ -333,13 +333,23 @@ function serializeSettings(settings: LocalSettings): SettingsFile {
 
 function normalizeCredentialBinding(value: unknown): string {
   if (value === "none") return "none";
-  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/.test(value) ? value : "";
+  return typeof value === "string" && /^hmac-sha256:[a-f0-9]{64}:[a-f0-9]{64}$/.test(value) ? value : "";
 }
 
-function credentialBinding(secret: string): string {
-  return secret
-    ? `sha256:${createHash("sha256").update(secret, "utf8").digest("hex")}`
-    : "none";
+function credentialBinding(secret: string, current = ""): string {
+  if (!secret) return "none";
+  const match = /^hmac-sha256:([a-f0-9]{64}):[a-f0-9]{64}$/.exec(current);
+  const nonce = match?.[1] ?? randomBytes(32).toString("hex");
+  const tag = createHmac("sha256", secret)
+    .update(`coforge-provider-binding-v1:${nonce}`, "utf8")
+    .digest("hex");
+  return `hmac-sha256:${nonce}:${tag}`;
+}
+
+function credentialBindingsEqual(left: string, right: string): boolean {
+  const leftBytes = Buffer.from(left, "utf8");
+  const rightBytes = Buffer.from(right, "utf8");
+  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
 function writeSettings(settings: LocalSettings) {
@@ -368,11 +378,11 @@ function writeSettings(settings: LocalSettings) {
 function readBoundProviderCredential(settings: LocalSettings): string {
   if (!describeCredentialStore().available) return "";
   const secret = readProviderCredentialIfAvailable();
-  const actualBinding = credentialBinding(secret);
+  const actualBinding = credentialBinding(secret, settings.provider.credentialBinding);
   if (!settings.provider.credentialBinding) {
     settings.provider.credentialBinding = actualBinding;
     writeSettings(settings);
-  } else if (settings.provider.credentialBinding !== actualBinding) {
+  } else if (!credentialBindingsEqual(settings.provider.credentialBinding, actualBinding)) {
     throw new CredentialStoreError(
       "CREDENTIAL_STORE_FAILED",
       "The saved provider and system credential do not belong to the same settings transaction. COFORGE refused to use the API key.",
@@ -417,7 +427,7 @@ function readSettings(): LocalSettings {
 
   if (legacyApiKey) {
     const credentialStore = describeCredentialStore();
-    settings.provider.credentialBinding = credentialBinding(legacyApiKey);
+    settings.provider.credentialBinding = credentialBinding(legacyApiKey, settings.provider.credentialBinding);
     // Remove plaintext before invoking any external credential helper.
     writeSettings(settings);
     if (!credentialStore.available) {
@@ -659,7 +669,7 @@ export function updateLocalSettings(update: LocalSettingsUpdate): PublicSettings
       nextProvider.testedAt = "";
     }
     nextProvider.credentialBinding = credentialUpdateRequested || credentialStoreAvailable
-      ? credentialBinding(nextCredential)
+      ? credentialBinding(nextCredential, credentialChanged ? "" : previous.credentialBinding)
       : previous.credentialBinding;
 
     settings.provider = nextProvider;
