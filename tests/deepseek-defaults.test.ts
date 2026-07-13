@@ -2,6 +2,8 @@ import { mkdtempSync, readFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { generateText } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 const { providerFetchMock } = vi.hoisted(() => ({
   providerFetchMock: vi.fn(),
@@ -186,6 +188,37 @@ describe("DeepSeek reasoning request", () => {
 
     expect(body).toMatchObject({ model: "deepseek-v4-pro" });
     expect(body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("serializes the connection probe with DeepSeek thinking disabled", async () => {
+    let requestBody: Record<string, unknown> | undefined;
+    providerFetchMock.mockImplementationOnce(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(typeof init?.body).toBe("string");
+      requestBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return successfulChatResponse("deepseek-v4-pro");
+    });
+    const provider = createOpenAICompatible({
+      name: "openai-compatible",
+      baseURL: "https://api.deepseek.com",
+      apiKey: "test-api-key",
+      fetch: providerFetchMock,
+    });
+
+    await generateText({
+      model: provider("deepseek-v4-pro"),
+      system: "You are a connection probe. Reply with OK only.",
+      prompt: "Return OK.",
+      temperature: 0,
+      providerOptions: { openaiCompatible: { thinking: { type: "disabled" } } },
+      maxOutputTokens: 16,
+    });
+
+    expect(requestBody).toMatchObject({
+      model: "deepseek-v4-pro",
+      thinking: { type: "disabled" },
+      max_tokens: 16,
+    });
+    expect(requestBody).not.toHaveProperty("reasoning_effort");
   });
 });
 

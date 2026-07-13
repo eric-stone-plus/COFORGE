@@ -3,6 +3,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { NextResponse } from "next/server";
 import { guardedProviderFetch } from "@/lib/provider-url-guard";
+import { isOfficialDeepSeekBaseURL } from "@/lib/provider-identity";
 import { compactProviderError } from "@/lib/provider-error";
 import { enforceApiRequest } from "@/lib/request-security";
 import {
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
       system,
       prompt,
       temperature: 0,
+      providerOptions: settings.backend === "openai-compatible" && isOfficialDeepSeekBaseURL(settings.baseURL)
+        ? { openaiCompatible: { thinking: { type: "disabled" } } }
+        : undefined,
       maxOutputTokens: 16,
       abortSignal: AbortSignal.timeout(Math.min(settings.timeoutMs, 15000)),
     });

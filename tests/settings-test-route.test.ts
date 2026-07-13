@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
+  createOpenAICompatible: vi.fn(() => (model: string) => ({ model })),
   reserveTokenBudget: vi.fn(() => "reservation-id"),
   settleTokenReservation: vi.fn(),
   releaseTokenReservation: vi.fn(),
@@ -10,8 +11,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("ai", () => ({ generateText: mocks.generateText }));
 vi.mock("@ai-sdk/anthropic", () => ({ createAnthropic: () => (model: string) => ({ model }) }));
-vi.mock("@ai-sdk/openai-compatible", () => ({ createOpenAICompatible: () => (model: string) => ({ model }) }));
+vi.mock("@ai-sdk/openai-compatible", () => ({ createOpenAICompatible: mocks.createOpenAICompatible }));
 vi.mock("@/lib/provider-url-guard", () => ({ guardedProviderFetch: vi.fn() }));
+vi.mock("@/lib/provider-identity", async () => import("../src/lib/provider-identity"));
 vi.mock("@/lib/provider-error", () => ({
   compactProviderError: (error: unknown) => error instanceof Error ? error.message : String(error),
 }));
@@ -52,7 +54,7 @@ function request() {
 }
 
 describe("provider connection probe", () => {
-  it("does not request reasoning, reserves the full output allowance, and accepts only OK", async () => {
+  it("disables DeepSeek thinking, reserves the full output allowance, and accepts only OK", async () => {
     mocks.generateText.mockResolvedValueOnce({
       text: "OK",
       usage: { inputTokens: 11, outputTokens: 1, totalTokens: 12 },
@@ -65,9 +67,11 @@ describe("provider connection probe", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true, message: "基础连接可用" });
     expect(mocks.reserveTokenBudget).toHaveBeenCalledWith(23, 100_000);
-    expect(options).toMatchObject({ maxOutputTokens: 16 });
+    expect(options).toMatchObject({
+      maxOutputTokens: 16,
+      providerOptions: { openaiCompatible: { thinking: { type: "disabled" } } },
+    });
     expect(options).not.toHaveProperty("reasoning");
-    expect(options).not.toHaveProperty("providerOptions");
     expect(mocks.settleTokenReservation).toHaveBeenCalledWith("reservation-id", {
       promptTokens: 11,
       completionTokens: 1,
