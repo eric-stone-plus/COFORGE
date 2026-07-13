@@ -22,15 +22,15 @@
     "verify": "npm run check:public && npm run verify:reasonix && npm run lint && npm run typecheck && npm test && npm run build && npm run licenses:generate && npm run licenses:verify"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.8",
-    "@ai-sdk/openai-compatible": "^3.0.5",
-    "ai": "^7.0.14",
+    "@ai-sdk/anthropic": "^4.0.12",
+    "@ai-sdk/openai-compatible": "^3.0.7",
+    "ai": "^7.0.22",
     "better-sqlite3": "^12.11.1",
     "next": "^15.5.20",
     "node-sql-parser": "^5.4.0",
     "react": "^18",
     "react-dom": "^18",
-    "recharts": "^3.9.1",
+    "recharts": "^3.9.2",
     "undici": "^7.28.0"
   },
   "devDependencies": {
