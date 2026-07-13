@@ -34,12 +34,15 @@ let secret = "";
 try { secret = JSON.parse(fs.readFileSync(statePath, "utf8")).secret || ""; } catch {}
 let failure = {};
 try { failure = JSON.parse(fs.readFileSync(failurePath, "utf8")); } catch {}
-let response = { version: 1, ok: true };
-if (request.version !== 1 || request.credential !== "provider-api-key") process.exit(2);
-if (request.operation === "read") response = { ...response, found: Boolean(secret), ...(secret ? { secret } : {}) };
+let binding = "";
+try { binding = JSON.parse(fs.readFileSync(statePath, "utf8")).binding || ""; } catch {}
+let response = { version: 2, ok: true };
+if (request.version !== 2 || request.credential !== "provider-api-key") process.exit(2);
+if (request.operation === "read") response = { ...response, found: Boolean(secret), ...(secret ? { secret, binding } : {}) };
 else if (request.operation === "write") {
+  if (!/^keychain:[0-9a-f-]{36}$/.test(request.binding || "")) process.exit(2);
   if (failure.beforeWriteSecret === request.secret) process.exit(3);
-  fs.writeFileSync(statePath, JSON.stringify({ secret: request.secret }), { mode: 0o600 });
+  fs.writeFileSync(statePath, JSON.stringify({ secret: request.secret, binding: request.binding }), { mode: 0o600 });
   if (failure.afterWriteSecret === request.secret) process.exit(3);
 }
 else if (request.operation === "delete") { try { fs.unlinkSync(statePath); } catch {} }
@@ -102,7 +105,9 @@ describe("desktop system credential store", () => {
     expect(saved.credentialStore).toMatchObject({ backend: "macos-keychain", available: true });
     expect(settingsText()).not.toContain(secret);
     expect(JSON.parse(settingsText()).provider).not.toHaveProperty("apiKey");
-    expect(JSON.parse(settingsText()).provider.credentialBinding).toMatch(/^hmac-sha256:[a-f0-9]{64}:[a-f0-9]{64}$/);
+    const binding = JSON.parse(settingsText()).provider.credentialBinding;
+    expect(binding).toMatch(/^keychain:[0-9a-f-]{36}$/);
+    expect(JSON.parse(readFileSync(helperStatePath, "utf8"))).toMatchObject({ secret, binding });
     expect(settings.getEffectiveProviderSettings().apiKey).toBe(secret);
 
     const cleared = settings.updateLocalSettings({ provider: { clearApiKey: true } });
@@ -125,6 +130,25 @@ describe("desktop system credential store", () => {
     expect(settings.getEffectiveProviderSettings().apiKey).toBe(secret);
     expect(settingsText()).not.toContain(secret);
     expect(JSON.parse(settingsText()).provider).not.toHaveProperty("apiKey");
+  });
+
+  it("migrates a legacy unbound Keychain value into a random transaction binding", async () => {
+    const secret = "legacy-keychain-secret";
+    writeFileSync(helperStatePath, JSON.stringify({ secret }), { mode: 0o600 });
+    writeFileSync(path.join(directory, "settings.json"), JSON.stringify({
+      provider: {
+        backend: "openai-compatible",
+        baseURL: "https://api.deepseek.com",
+        model: "deepseek-v4-pro",
+        credentialBinding: "sha256:" + "a".repeat(64),
+      },
+    }), { mode: 0o600 });
+
+    const settings = await loadSettings();
+    expect(settings.getEffectiveProviderSettings().apiKey).toBe(secret);
+    const binding = JSON.parse(settingsText()).provider.credentialBinding;
+    expect(binding).toMatch(/^keychain:[0-9a-f-]{36}$/);
+    expect(JSON.parse(readFileSync(helperStatePath, "utf8"))).toEqual({ secret, binding });
   });
 
   it("scrubs and refuses a legacy plaintext key when no trusted helper is available", async () => {

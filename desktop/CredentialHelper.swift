@@ -2,16 +2,18 @@ import Foundation
 import Security
 import Darwin
 
-private let protocolVersion = 1
+private let protocolVersion = 2
 private let allowedCredential = "provider-api-key"
 private let maxInputBytes = 64 * 1024
 private let maxSecretBytes = 32 * 1024
+private let maxStoredCredentialBytes = maxSecretBytes + 1024
 
 private struct Request: Decodable {
     let version: Int
     let operation: String
     let credential: String
     let secret: String?
+    let binding: String?
 }
 
 private struct Response: Encodable {
@@ -19,6 +21,13 @@ private struct Response: Encodable {
     let ok: Bool
     let found: Bool?
     let secret: String?
+    let binding: String?
+}
+
+private struct StoredCredential: Codable {
+    let version: Int
+    let secret: String
+    let binding: String
 }
 
 private enum HelperError: Error {
@@ -147,7 +156,7 @@ private func baseQuery() -> [String: Any] {
     ]
 }
 
-private func readSecret() throws -> String? {
+private func readSecret() throws -> StoredCredential? {
     var query = baseQuery()
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -156,18 +165,27 @@ private func readSecret() throws -> String? {
     if status == errSecItemNotFound { return nil }
     guard status == errSecSuccess,
           let data = item as? Data,
-          data.count <= maxSecretBytes,
-          let secret = String(data: data, encoding: .utf8) else {
+          data.count <= maxStoredCredentialBytes,
+          let legacySecret = String(data: data, encoding: .utf8) else {
         throw HelperError.keychain(status)
     }
-    return secret
+    if let stored = try? JSONDecoder().decode(StoredCredential.self, from: data),
+       stored.version == 1,
+       !stored.secret.isEmpty,
+       !stored.secret.contains("\0"),
+       stored.secret.lengthOfBytes(using: .utf8) <= maxSecretBytes,
+       stored.binding.range(of: "^keychain:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression) != nil {
+        return stored
+    }
+    return StoredCredential(version: 1, secret: legacySecret, binding: "")
 }
 
-private func writeSecret(_ secret: String) throws {
+private func writeSecret(_ secret: String, binding: String) throws {
     guard !secret.isEmpty,
           !secret.contains("\0"),
-          let data = secret.data(using: .utf8),
-          data.count <= maxSecretBytes else {
+          binding.range(of: "^keychain:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression) != nil,
+          let data = try? JSONEncoder().encode(StoredCredential(version: 1, secret: secret, binding: binding)),
+          data.count <= maxStoredCredentialBytes else {
         throw HelperError.invalidRequest
     }
 
@@ -210,17 +228,17 @@ private func run() throws {
 
     switch request.operation {
     case "status":
-        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil))
+        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil, binding: nil))
     case "read":
         let secret = try readSecret()
-        try respond(Response(version: protocolVersion, ok: true, found: secret != nil, secret: secret))
+        try respond(Response(version: protocolVersion, ok: true, found: secret != nil, secret: secret?.secret, binding: secret?.binding))
     case "write":
-        guard let secret = request.secret else { throw HelperError.invalidRequest }
-        try writeSecret(secret)
-        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil))
+        guard let secret = request.secret, let binding = request.binding else { throw HelperError.invalidRequest }
+        try writeSecret(secret, binding: binding)
+        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil, binding: nil))
     case "delete":
         try deleteSecret()
-        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil))
+        try respond(Response(version: protocolVersion, ok: true, found: nil, secret: nil, binding: nil))
     default:
         throw HelperError.invalidRequest
     }

@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "fs";
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import os from "os";
 import path from "path";
 import {
@@ -333,17 +333,11 @@ function serializeSettings(settings: LocalSettings): SettingsFile {
 
 function normalizeCredentialBinding(value: unknown): string {
   if (value === "none") return "none";
-  return typeof value === "string" && /^hmac-sha256:[a-f0-9]{64}:[a-f0-9]{64}$/.test(value) ? value : "";
+  return typeof value === "string" && /^keychain:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value) ? value : "";
 }
 
-function credentialBinding(secret: string, current = ""): string {
-  if (!secret) return "none";
-  const match = /^hmac-sha256:([a-f0-9]{64}):[a-f0-9]{64}$/.exec(current);
-  const nonce = match?.[1] ?? randomBytes(32).toString("hex");
-  const tag = createHmac("sha256", secret)
-    .update(`coforge-provider-binding-v1:${nonce}`, "utf8")
-    .digest("hex");
-  return `hmac-sha256:${nonce}:${tag}`;
+function newCredentialBinding(secret: string): string {
+  return secret ? `keychain:${randomUUID()}` : "none";
 }
 
 function credentialBindingsEqual(left: string, right: string): boolean {
@@ -377,8 +371,12 @@ function writeSettings(settings: LocalSettings) {
 
 function readBoundProviderCredential(settings: LocalSettings): string {
   if (!describeCredentialStore().available) return "";
-  const secret = readProviderCredentialIfAvailable();
-  const actualBinding = credentialBinding(secret, settings.provider.credentialBinding);
+  const credential = readProviderCredentialIfAvailable();
+  let actualBinding = credential.binding;
+  if (credential.secret && !actualBinding) {
+    actualBinding = newCredentialBinding(credential.secret);
+    writeProviderCredential(credential.secret, actualBinding);
+  }
   if (!settings.provider.credentialBinding) {
     settings.provider.credentialBinding = actualBinding;
     writeSettings(settings);
@@ -388,7 +386,7 @@ function readBoundProviderCredential(settings: LocalSettings): string {
       "The saved provider and system credential do not belong to the same settings transaction. COFORGE refused to use the API key.",
     );
   }
-  return secret;
+  return credential.secret;
 }
 
 function restoreProviderTransaction(
@@ -407,7 +405,7 @@ function restoreProviderTransaction(
   }
   if (restoreCredential) {
     try {
-      if (secret) writeProviderCredential(secret);
+      if (secret) writeProviderCredential(secret, settings.provider.credentialBinding);
       else deleteProviderCredential();
     } catch {
       failures.push("credential");
@@ -427,7 +425,7 @@ function readSettings(): LocalSettings {
 
   if (legacyApiKey) {
     const credentialStore = describeCredentialStore();
-    settings.provider.credentialBinding = credentialBinding(legacyApiKey, settings.provider.credentialBinding);
+    settings.provider.credentialBinding = newCredentialBinding(legacyApiKey);
     // Remove plaintext before invoking any external credential helper.
     writeSettings(settings);
     if (!credentialStore.available) {
@@ -437,7 +435,7 @@ function readSettings(): LocalSettings {
       );
     }
     try {
-      writeProviderCredential(legacyApiKey);
+      writeProviderCredential(legacyApiKey, settings.provider.credentialBinding);
     } catch (error) {
       if (error instanceof CredentialStoreError) {
         throw new CredentialStoreError(
@@ -622,11 +620,7 @@ export function updateLocalSettings(update: LocalSettingsUpdate): PublicSettings
     if (credentialUpdateRequested && !credentialStoreAvailable) {
       throw new CredentialStoreError("CREDENTIAL_STORE_UNAVAILABLE", describeCredentialStore().message);
     }
-    previousCredential = credentialStoreAvailable
-      ? credentialUpdateRequested
-        ? readProviderCredentialIfAvailable()
-        : readBoundProviderCredential(settings)
-      : "";
+    if (credentialStoreAvailable) previousCredential = readBoundProviderCredential(settings);
     previousSettings.provider.credentialBinding = settings.provider.credentialBinding;
     nextCredential = apiKey || shouldClearApiKey ? apiKey : previousCredential;
     credentialChanged = credentialUpdateRequested && nextCredential !== previousCredential;
@@ -668,8 +662,8 @@ export function updateLocalSettings(update: LocalSettingsUpdate): PublicSettings
         : DEFAULT_PROVIDER.connectionMessage;
       nextProvider.testedAt = "";
     }
-    nextProvider.credentialBinding = credentialUpdateRequested || credentialStoreAvailable
-      ? credentialBinding(nextCredential, credentialChanged ? "" : previous.credentialBinding)
+    nextProvider.credentialBinding = credentialChanged
+      ? newCredentialBinding(nextCredential)
       : previous.credentialBinding;
 
     settings.provider = nextProvider;
@@ -692,7 +686,7 @@ export function updateLocalSettings(update: LocalSettingsUpdate): PublicSettings
     }
     if (credentialChanged) {
       credentialMutationAttempted = true;
-      if (nextCredential) writeProviderCredential(nextCredential);
+      if (nextCredential) writeProviderCredential(nextCredential, settings.provider.credentialBinding);
       else deleteProviderCredential();
     }
     if (providerTransaction) {

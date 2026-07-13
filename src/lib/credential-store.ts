@@ -3,7 +3,7 @@ import { constants as fsConstants, accessSync, lstatSync, readFileSync } from "f
 import path from "path";
 import { spawnSync } from "child_process";
 
-const HELPER_PROTOCOL_VERSION = 1;
+const HELPER_PROTOCOL_VERSION = 2;
 const PROVIDER_CREDENTIAL = "provider-api-key";
 const MAX_SECRET_BYTES = 32 * 1024;
 const MAX_HELPER_OUTPUT_BYTES = 64 * 1024;
@@ -48,6 +48,12 @@ type HelperResponse = {
   ok?: unknown;
   found?: unknown;
   secret?: unknown;
+  binding?: unknown;
+};
+
+export type ProviderCredentialRecord = {
+  secret: string;
+  binding: string;
 };
 
 function platformDescription(platform: NodeJS.Platform): Omit<CredentialStoreStatus, "available" | "message"> | null {
@@ -163,7 +169,7 @@ function minimalHelperEnvironment(platform: SupportedPlatform): NodeJS.ProcessEn
   return { NODE_ENV: process.env.NODE_ENV };
 }
 
-function runHelper(operation: HelperOperation, secret?: string): HelperResponse {
+function runHelper(operation: HelperOperation, secret?: string, binding?: string): HelperResponse {
   const platform = process.platform;
   if (platform !== "darwin" && platform !== "win32") {
     throw new CredentialStoreError("CREDENTIAL_STORE_UNAVAILABLE", describeCredentialStore(platform).message);
@@ -179,6 +185,7 @@ function runHelper(operation: HelperOperation, secret?: string): HelperResponse 
     operation,
     credential: PROVIDER_CREDENTIAL,
     ...(secret === undefined ? {} : { secret }),
+    ...(binding === undefined ? {} : { binding }),
   });
   const result = spawnSync(helperPath, [], {
     input: request,
@@ -218,24 +225,31 @@ function validateSecret(secret: string) {
   }
 }
 
-export function readProviderCredential(): string {
+export function readProviderCredential(): ProviderCredentialRecord {
   const response = runHelper("read");
-  if (response.found === false) return "";
+  if (response.found === false) return { secret: "", binding: "none" };
   if (response.found !== true || typeof response.secret !== "string") {
     throw new CredentialStoreError("CREDENTIAL_STORE_FAILED", "The system credential store returned an invalid credential response.");
   }
   validateSecret(response.secret);
-  return response.secret;
+  const binding = typeof response.binding === "string" ? response.binding : "";
+  if (binding && !/^keychain:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(binding)) {
+    throw new CredentialStoreError("CREDENTIAL_STORE_FAILED", "The system credential store returned an invalid credential binding.");
+  }
+  return { secret: response.secret, binding };
 }
 
-export function readProviderCredentialIfAvailable(): string {
-  if (!describeCredentialStore().available) return "";
+export function readProviderCredentialIfAvailable(): ProviderCredentialRecord {
+  if (!describeCredentialStore().available) return { secret: "", binding: "none" };
   return readProviderCredential();
 }
 
-export function writeProviderCredential(secret: string): void {
+export function writeProviderCredential(secret: string, binding: string): void {
   validateSecret(secret);
-  runHelper("write", secret);
+  if (!/^keychain:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(binding)) {
+    throw new CredentialStoreError("CREDENTIAL_INVALID", "The credential transaction binding is invalid.");
+  }
+  runHelper("write", secret, binding);
 }
 
 export function deleteProviderCredential(): void {
