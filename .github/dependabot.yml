@@ -28,3 +28,7 @@ updates:
       time: "03:40"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"

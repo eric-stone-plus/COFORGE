@@ -51,6 +51,7 @@ describe("dependency update policy", () => {
     const content = readFileSync(join(process.cwd(), ".github", "dependabot.yml"), "utf8");
     expect(content).toMatch(/package-ecosystem:\s*npm/);
     expect(content).toMatch(/package-ecosystem:\s*github-actions/);
+    expect(content).toMatch(/github-actions:\s*\n\s+patterns:\s*\n\s+- ["']\*["']/);
   });
 });
 
