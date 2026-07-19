@@ -93,10 +93,18 @@ export function appendQueryAuditEvent(input: QueryAuditInput): Promise<QueryAudi
 export async function readQueryAuditEvents(path = resolveQueryAuditPath()): Promise<QueryAuditEvent[]> {
   try {
     const contents = await readFile(path, "utf8");
-    return contents.split("\n").filter(Boolean).map((line) => {
-      const parsed = JSON.parse(line) as QueryAuditEvent;
-      return Object.freeze({ ...parsed, tables: Object.freeze([...parsed.tables]) });
-    });
+    const events: QueryAuditEvent[] = [];
+    for (const line of contents.split("\n")) {
+      if (!line) continue;
+      try {
+        const parsed = JSON.parse(line) as QueryAuditEvent;
+        events.push(Object.freeze({ ...parsed, tables: Object.freeze([...parsed.tables]) }));
+      } catch {
+        // Skip a torn trailing line (e.g. crash mid-append) instead of
+        // failing the entire audit read.
+      }
+    }
+    return events;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;

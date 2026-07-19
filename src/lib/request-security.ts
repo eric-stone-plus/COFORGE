@@ -63,11 +63,15 @@ function clientKey(request: Request) {
   const bearer = bearerToken(request);
   const authenticatedBearer = constantTimeEqual(bearer, process.env.COFORGE_ADMIN_TOKEN)
     || constantTimeEqual(bearer, process.env.COFORGE_ANALYST_TOKEN);
+  // Without a trusted proxy the only client signal is the Host header, which
+  // the client controls: it cannot isolate abusers and turns the limit into a
+  // shared bucket. Use one honest global bucket instead; per-IP limiting
+  // requires COFORGE_TRUST_PROXY=1 behind a header-sanitizing proxy.
   const identity = authenticatedBearer
     ? `token:${bearer}`
     : trustedProxyHeaders()
       ? `ip:${firstForwarded(request.headers.get("x-forwarded-for")) || request.headers.get("x-real-ip")?.trim() || "unknown"}`
-      : `host:${normalizedHost(request.headers.get("host") ?? "") || new URL(request.url).hostname}`;
+      : "global";
   return createHash("sha256").update(identity).digest("hex").slice(0, 24);
 }
 

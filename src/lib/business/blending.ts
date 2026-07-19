@@ -302,7 +302,7 @@ export function optimizeCoalBlend(value: BlendOptimizationInput) {
     targetMt: requirements.targetMt,
     stepMt: requirements.stepMt,
     searchSpaceSize,
-    evaluatedAllAllocations: true,
+    evaluatedAllAllocations: searchSpaceSize > 0,
     qualityEnvelope: Object.fromEntries(Object.entries(envelope).map(([key, range]) => [
       key,
       {

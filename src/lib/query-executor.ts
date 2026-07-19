@@ -221,6 +221,9 @@ function runWorker(dbPath: string, guarded: GuardedSql, limits: QueryLimits): Pr
     timer.unref();
 
     child.once("error", () => finish(() => reject(new QueryExecutionError("QUERY_PROCESS_ERROR"))));
+    // A child that dies before consuming the payload would otherwise raise
+    // EPIPE on stdin as an uncaught exception and take down the server.
+    child.stdin.on("error", () => undefined);
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       stdout += chunk;

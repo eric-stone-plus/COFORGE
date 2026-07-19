@@ -74,7 +74,7 @@ function derivedSources(statement: Select) {
   return sources;
 }
 
-function validateColumns(statement: Select) {
+function validateColumns(statement: Select, inheritedAliases: ReadonlyMap<string, string> = new Map()) {
   const aliases = sourceAliases(statement);
   const ctes = cteNames(statement);
   const derived = derivedSources(statement);
@@ -94,8 +94,19 @@ function validateColumns(statement: Select) {
           && nestedSourceQualifiers(statement).has(qualifier);
         if (belongsToNestedSelect) return;
         const columns = derived.get(qualifier);
-        if (!columns) throw new Error(`Column qualifier is not allowed: ${qualifier}`);
-        if (!columns.has(column)) throw new Error(`Column access is not allowed: ${qualifier}.${column}`);
+        if (columns) {
+          if (!columns.has(column)) throw new Error(`Column access is not allowed: ${qualifier}.${column}`);
+          return;
+        }
+        // A correlated subquery may reference aliases from enclosing scopes.
+        const inheritedTable = inheritedAliases.get(qualifier);
+        if (inheritedTable) {
+          if (!PUBLIC_QUERY_COLUMNS.get(inheritedTable)?.has(column)) {
+            throw new Error(`Column access is not allowed: ${qualifier}.${column}`);
+          }
+          return;
+        }
+        throw new Error(`Column qualifier is not allowed: ${qualifier}`);
       }
       return;
     }
@@ -103,7 +114,12 @@ function validateColumns(statement: Select) {
     if (aliases.size > 0) {
       const allowed = [...new Set(aliases.values())]
         .some((table) => PUBLIC_QUERY_COLUMNS.get(table)?.has(column));
-      if (!allowed) throw new Error(`Column access is not allowed: ${column}`);
+      if (!allowed) {
+        // SQL resolves unqualified columns against enclosing scopes too.
+        const inherited = [...new Set(inheritedAliases.values())]
+          .some((table) => PUBLIC_QUERY_COLUMNS.get(table)?.has(column));
+        if (!inherited) throw new Error(`Column access is not allowed: ${column}`);
+      }
       return;
     }
     // CTE outputs may be derived aliases; their source SELECT is validated separately.
@@ -132,11 +148,45 @@ function validateColumns(statement: Select) {
     }
   });
 
-  // Validate every nested SELECT with its own table and alias scope.
-  walk(statement, (node) => {
-    const nested = (node.ast && typeof node.ast === "object" ? node.ast : null) as Select | null;
-    if (nested?.type === "select" && nested !== statement) validateColumns(nested);
-  });
+  // Validate every nested SELECT with its own scope plus the enclosing aliases,
+  // so correlated subqueries can reference outer sources. Set-operation
+  // branches (`_next`) are sibling scopes: they see enclosing aliases only.
+  for (const nested of nestedSelects(statement)) {
+    const childScope = new Map(inheritedAliases);
+    for (const [alias, table] of aliases) childScope.set(alias, table);
+    validateColumns(nested, childScope);
+  }
+  const next = statement._next as Select | undefined;
+  if (next?.type === "select") validateColumns(next, inheritedAliases);
+}
+
+function nestedSelects(statement: Select) {
+  const found: Select[] = [];
+  const seen = new Set<unknown>();
+  function visit(value: unknown) {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    const node = value as Record<string, unknown>;
+    const nested = node.ast && typeof node.ast === "object" ? node.ast : null;
+    if (nested && (nested as { type?: unknown }).type === "select" && nested !== statement) {
+      // Deeper nesting is validated by the recursive call on this select.
+      found.push(nested as Select);
+      return;
+    }
+    for (const [key, item] of Object.entries(node)) {
+      if (key === "_next") continue;
+      visit(item);
+    }
+  }
+  for (const [key, item] of Object.entries(statement as unknown as Record<string, unknown>)) {
+    if (key === "_next") continue;
+    visit(item);
+  }
+  return found;
 }
 
 function nestedSourceQualifiers(statement: Select) {
@@ -405,9 +455,10 @@ export function guardReadOnlySql(
     throw new Error(`Table access is not allowed: ${forbiddenTables.join(", ")}`);
   }
 
-  // node-sql-parser stores UNION branches in `_next`, not `ast`. Validate
-  // every SELECT block so set operations cannot bypass the column allowlist.
-  blocks.forEach((block) => validateColumns(block));
+  // node-sql-parser stores subqueries under `ast` and UNION branches in
+  // `_next`. validateColumns recurses through both, validating every SELECT
+  // block in its own scope with enclosing aliases available for correlation.
+  validateColumns(statement);
 
   const maxRows = Math.max(1, Math.trunc(options.maxRows ?? DEFAULT_QUERY_LIMIT));
   const limit = Math.min(requestedLimit(statement), maxRows);

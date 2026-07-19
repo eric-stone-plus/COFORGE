@@ -162,6 +162,18 @@ describe("API request boundary", () => {
     expect(enforceApiRequest(input, policy)?.status).toBe(429);
   });
 
+  it("does not let a rotating Host header mint fresh rate-limit buckets", () => {
+    const policy = { minimumRole: "analyst" as const, json: true, rateLimit: { bucket: "host-rotation", limit: 2, windowMs: 60_000 } };
+    const hosts = ["a.example", "b.example", "c.example"];
+    const responses = hosts.map((host) => enforceApiRequest(
+      request({ origin: "https://demo.example", "content-type": "application/json", host }),
+      policy,
+    ));
+    expect(responses[0]).toBeNull();
+    expect(responses[1]).toBeNull();
+    expect(responses[2]?.status).toBe(429);
+  });
+
   it("ignores spoofed proxy headers unless trusted proxy mode is explicit", () => {
     const policy = { minimumRole: "analyst" as const, json: true, rateLimit: { bucket: "spoof", limit: 2, windowMs: 60_000 } };
     const first = request({

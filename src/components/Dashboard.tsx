@@ -37,13 +37,20 @@ export type DashboardProps = {
   className?: string;
 };
 
-const COLORS = ["#2563eb", "#16a34a", "#dc2626", "#9333ea", "#ea580c", "#0891b2"];
+const COLORS = ["#4e8cff", "#34d399", "#f87171", "#a78bfa", "#fb923c", "#22d3ee"];
 
 function getConfigKeys(config: ChartConfig, data: Record<string, unknown>[]) {
   const sample = data[0] ?? {};
   const keys = Object.keys(sample);
   const xKey = config.x_key ?? config.xKey ?? config.nameKey ?? keys[0] ?? "name";
-  const yKey = config.y_key ?? config.yKey ?? config.valueKey ?? keys[1] ?? "value";
+  const configuredYKey = config.y_key ?? config.yKey ?? config.valueKey;
+  // A configured y_key that is missing or never numeric renders an empty
+  // chart; fall back to a numeric column instead of blindly taking keys[1].
+  const isNumeric = (key: string) => data.slice(0, 20).some((row) => typeof row[key] === "number");
+  const numericFallback = keys.find((key) => key !== xKey && isNumeric(key));
+  const yKey = configuredYKey && isNumeric(configuredYKey)
+    ? configuredYKey
+    : numericFallback ?? configuredYKey ?? keys[1] ?? "value";
 
   return { xKey, yKey };
 }
@@ -72,15 +79,15 @@ function renderChart({
   if (chartType === "line") {
     return (
       <LineChart data={data} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#64748b" />
-        <YAxis tick={{ fontSize: 12 }} stroke="#64748b" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,.25)" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#8e8e96" />
+        <YAxis tick={{ fontSize: 12 }} stroke="#8e8e96" />
         <Tooltip />
         <Legend />
         <Line
           type="monotone"
           dataKey={yKey}
-          stroke="#2563eb"
+          stroke="#4e8cff"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 5 }}
@@ -114,16 +121,16 @@ function renderChart({
   if (chartType === "area") {
     return (
       <AreaChart data={data} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#64748b" />
-        <YAxis tick={{ fontSize: 12 }} stroke="#64748b" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,.25)" />
+        <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#8e8e96" />
+        <YAxis tick={{ fontSize: 12 }} stroke="#8e8e96" />
         <Tooltip />
         <Legend />
         <Area
           type="monotone"
           dataKey={yKey}
-          stroke="#2563eb"
-          fill="#bfdbfe"
+          stroke="#4e8cff"
+          fill="rgba(78,140,255,.18)"
           strokeWidth={2}
         />
       </AreaChart>
@@ -132,12 +139,12 @@ function renderChart({
 
   return (
     <BarChart data={data} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-      <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#64748b" />
-      <YAxis tick={{ fontSize: 12 }} stroke="#64748b" />
+      <CartesianGrid strokeDasharray="3 3" stroke="rgba(128,128,128,.25)" />
+      <XAxis dataKey={xKey} tick={{ fontSize: 12 }} stroke="#8e8e96" />
+      <YAxis tick={{ fontSize: 12 }} stroke="#8e8e96" />
       <Tooltip />
       <Legend />
-      <Bar dataKey={yKey} fill="#2563eb" radius={[4, 4, 0, 0]} />
+      <Bar dataKey={yKey} fill="#4e8cff" radius={[4, 4, 0, 0]} />
     </BarChart>
   );
 }

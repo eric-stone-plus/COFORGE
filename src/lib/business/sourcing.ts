@@ -432,7 +432,9 @@ export function compareDomesticAndImported(value: TradeEconomicsInput) {
     },
     spreadDomesticMinusImportedCnyPerMillionKcal: round(spread),
     lowerCostSource: spread > 0 ? "imported" as const : spread < 0 ? "domestic" as const : "equal" as const,
-    inversionAlert: Math.abs(spread) >= threshold,
+    // Inversion means imported coal costs more than domestic per unit of
+    // heat (negative spread); alert only on that side of the threshold.
+    inversionAlert: spread < 0 && Math.abs(spread) >= threshold,
     breakEvenExchangeRateCnyPerUsd: breakEvenExchangeRate === null || breakEvenExchangeRate < 0
       ? null
       : round(breakEvenExchangeRate),

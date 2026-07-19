@@ -168,4 +168,28 @@ describe("guardReadOnlySql", () => {
       "SELECT c.vessel_name FROM cargoes c JOIN suppliers s USING (password_hash)",
     )).toThrow(/Column access/);
   });
+
+  it("allows correlated subqueries against enclosing aliases", () => {
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE EXISTS (SELECT i.yard FROM inventory i WHERE i.coal_spec_id = c.coal_spec_id)",
+    )).not.toThrow();
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE c.quantity_mt > (SELECT AVG(i.stock_mt) FROM inventory i WHERE i.coal_spec_id = c.coal_spec_id)",
+    )).not.toThrow();
+  });
+
+  it("still rejects forbidden columns and tables inside correlated subqueries", () => {
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE EXISTS (SELECT s.password_hash FROM suppliers s WHERE s.id = c.supplier_id)",
+    )).toThrow(/Column access/);
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE EXISTS (SELECT i.yard FROM inventory i WHERE i.coal_spec_id = c.password_hash)",
+    )).toThrow(/Column access/);
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE EXISTS (SELECT m.name FROM sqlite_master m WHERE m.name = c.vessel_name)",
+    )).toThrow(/Table access/);
+    expect(() => guardReadOnlySql(
+      "SELECT c.vessel_name FROM cargoes c WHERE EXISTS (SELECT i.yard FROM inventory i WHERE i.coal_spec_id = x.unknown_col)",
+    )).toThrow(/qualifier/);
+  });
 });

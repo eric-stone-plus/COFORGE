@@ -20,7 +20,7 @@ type ChatPanelProps = {
   suggestedPrompt?: { text: string; id: number } | null;
 };
 
-const COLORS = ["#0969da", "#1a7f37", "#9a6700", "#cf222e", "#8250df", "#0550ae"];
+const COLORS = ["#4e8cff", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#22d3ee"];
 
 const DEMO_CHIPS = [
   "哪些在途船最需要关注？",
@@ -62,41 +62,41 @@ function ChartResult({ result }: { result: ChatResult }) {
     );
   }
 
-  const axisProps = { tick: { fill: "#656d76", fontSize: 11 }, tickLine: false, axisLine: false };
+  const axisProps = { tick: { fill: "#8e8e96", fontSize: 11 }, tickLine: false, axisLine: false };
 
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         {chartType === "line" ? (
           <LineChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#e1e4e8" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="rgba(128,128,128,.25)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey={xKey} {...axisProps} />
             <YAxis {...axisProps} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1e4e8", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
-            <Line type="monotone" dataKey={yKey} stroke="#0969da" strokeWidth={2} dot={{ r: 3, fill: "#0969da" }} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(128,128,128,.25)", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
+            <Line type="monotone" dataKey={yKey} stroke="#4e8cff" strokeWidth={2} dot={{ r: 3, fill: "#4e8cff" }} />
           </LineChart>
         ) : chartType === "area" ? (
           <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#e1e4e8" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="rgba(128,128,128,.25)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey={xKey} {...axisProps} />
             <YAxis {...axisProps} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1e4e8" }} />
-            <Area type="monotone" dataKey={yKey} stroke="#0969da" fill="#ddf4ff" strokeWidth={2} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(128,128,128,.25)" }} />
+            <Area type="monotone" dataKey={yKey} stroke="#4e8cff" fill="rgba(78,140,255,.18)" strokeWidth={2} />
           </AreaChart>
         ) : chartType === "pie" ? (
           <PieChart>
-            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1e4e8" }} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(128,128,128,.25)" }} />
             <Pie data={data} dataKey={yKey} nameKey={xKey} cx="50%" cy="50%" innerRadius={52} outerRadius={96} paddingAngle={2}>
               {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
           </PieChart>
         ) : (
           <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="#e1e4e8" strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid stroke="rgba(128,128,128,.25)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey={xKey} {...axisProps} />
             <YAxis {...axisProps} />
-            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e1e4e8" }} />
-            <Bar dataKey={yKey} fill="#0969da" radius={[4, 4, 0, 0]} />
+            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid rgba(128,128,128,.25)" }} />
+            <Bar dataKey={yKey} fill="#4e8cff" radius={[4, 4, 0, 0]} />
           </BarChart>
         )}
       </ResponsiveContainer>
@@ -213,35 +213,39 @@ export default function ChatPanel({ onResult, externalResult, externalResultEven
       const decoder = new TextDecoder();
       let finalResult: ChatResult | null = null;
 
-      let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+      try {
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
 
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
 
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "progress") {
-              setProgressSteps((prev) => [...prev, { step: data.step, message: data.message }]);
-            } else if (data.type === "result") {
-              finalResult = data;
-            } else if (data.type === "error") {
-              throw new Error(data.error);
-            }
-          } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
-              throw parseErr;
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === "progress") {
+                setProgressSteps((prev) => [...prev, { step: data.step, message: data.message }]);
+              } else if (data.type === "result") {
+                finalResult = data;
+              } else if (data.type === "error") {
+                throw new Error(data.error);
+              }
+            } catch (parseErr) {
+              if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
+                throw parseErr;
+              }
             }
           }
         }
+      } finally {
+        requestController.signal.removeEventListener("abort", cancelReader);
+        cancelReader();
       }
 
-      requestController.signal.removeEventListener("abort", cancelReader);
       if (!finalResult) throw new Error("未收到响应");
       setResult(finalResult);
       setHistory((h) => [...h, { q, r: finalResult! }]);
@@ -281,7 +285,7 @@ export default function ChatPanel({ onResult, externalResult, externalResultEven
       <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6">
         {history.length === 0 && !displayResult && !isLoading && (
           <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-6 sm:py-20">
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-bold text-white sm:mb-5 sm:h-16 sm:w-16 sm:text-2xl" style={{ background: "linear-gradient(135deg, #2f81f7, #3fb950)" }}>CO</div>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-bold text-white sm:mb-5 sm:h-16 sm:w-16 sm:text-2xl" style={{ background: "linear-gradient(135deg, #3b7bfd, #7a5af8)" }}>CO</div>
             <h2 className="mb-2 text-lg font-semibold sm:text-xl" style={{ color: "var(--text)" }}>煤炭运营分析助手</h2>
             <p className="mb-3 text-center text-sm leading-relaxed sm:mb-4" style={{ color: "var(--text-secondary)" }}>用合成煤炭运营样例分析船货、运价、库存、合同和配煤，把经营问题拆成可执行查询与建议。</p>
             <p className="mb-5 rounded-full px-3 py-1 text-center text-xs sm:mb-8" style={{ color: "var(--text-muted)", background: "var(--surface-hover)" }}>设置中选择模型服务并填写 key/token；高级设置可调整 API URL、后端类型和模型名称</p>
@@ -342,11 +346,14 @@ export default function ChatPanel({ onResult, externalResult, externalResultEven
                   {!item.r.conversational && <ChartResult result={item.r} />}
                   {item.r.sql && (
                     <button onClick={() => {
-                      const metrics = JSON.parse(localStorage.getItem(METRIC_STORAGE_KEY) || "[]");
-                      const name = item.r.chartConfig?.title ?? item.q.slice(0, 20);
-                      metrics.unshift({ name, sql: item.r.sql, chartConfig: item.r.chartConfig ?? item.r.chart_config });
-                      localStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify(metrics));
-                      window.dispatchEvent(new StorageEvent("storage", { key: METRIC_STORAGE_KEY }));
+                      try {
+                        const parsed: unknown = JSON.parse(localStorage.getItem(METRIC_STORAGE_KEY) || "[]");
+                        const metrics = Array.isArray(parsed) ? parsed : [];
+                        const name = item.r.chartConfig?.title ?? item.q.slice(0, 20);
+                        metrics.unshift({ name, sql: item.r.sql, chartConfig: item.r.chartConfig ?? item.r.chart_config });
+                        localStorage.setItem(METRIC_STORAGE_KEY, JSON.stringify(metrics));
+                        window.dispatchEvent(new StorageEvent("storage", { key: METRIC_STORAGE_KEY }));
+                      } catch { /* ignore unreadable localStorage */ }
                     }} className="mt-3 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-default" style={{ background: "var(--accent)" }}>保存指标</button>
                   )}
                 </div>
@@ -430,7 +437,7 @@ export default function ChatPanel({ onResult, externalResult, externalResultEven
 
       <div className="border-t px-3 py-3 sm:px-6 sm:py-4" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="mx-auto flex max-w-3xl items-end gap-2 sm:gap-3">
-          <textarea ref={textareaRef} value={message} onChange={(e) => setMessage(e.target.value)}
+          <textarea ref={textareaRef} value={message} onChange={(e) => setMessage(e.target.value)} aria-label="消息输入"
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
             placeholder="直接问：哪些在途船最需要关注？" rows={1}
             className="flex-1 resize-none rounded-xl border px-4 py-3 text-sm outline-none transition-default"

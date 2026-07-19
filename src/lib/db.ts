@@ -29,10 +29,6 @@ export function getDb(): Database.Database {
   return db;
 }
 
-export function queryDb(sql: string): Record<string, unknown>[] {
-  return getDb().prepare(sql).all() as Record<string, unknown>[];
-}
-
 export async function queryPublicDb(
   sql: string,
   options: QueryExecutionOptions = {},

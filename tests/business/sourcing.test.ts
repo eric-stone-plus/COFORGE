@@ -115,6 +115,46 @@ describe("sourcing engine", () => {
     expect(result.lowerCostSource).toBe("domestic");
   });
 
+  it("alerts only when imported coal is genuinely more expensive than domestic", () => {
+    const inverted = compareDomesticAndImported({
+      domestic: { minePriceCnyPerMt: 620, narKcalPerKg: 6_000 },
+      imported: {
+        fobUsdPerMt: 70,
+        oceanFreightUsdPerMt: 10,
+        exchangeRateCnyPerUsd: 7,
+        narKcalPerKg: 4_000,
+      },
+      inversionAlertThresholdCnyPerMillionKcal: 5,
+    });
+    expect(inverted.spreadDomesticMinusImportedCnyPerMillionKcal).toBeLessThan(0);
+    expect(inverted.inversionAlert).toBe(true);
+
+    const importsCheaper = compareDomesticAndImported({
+      domestic: { minePriceCnyPerMt: 900, narKcalPerKg: 5_500 },
+      imported: {
+        fobUsdPerMt: 60,
+        oceanFreightUsdPerMt: 10,
+        exchangeRateCnyPerUsd: 7,
+        narKcalPerKg: 5_500,
+      },
+      inversionAlertThresholdCnyPerMillionKcal: 5,
+    });
+    expect(importsCheaper.spreadDomesticMinusImportedCnyPerMillionKcal).toBeGreaterThan(0);
+    expect(importsCheaper.inversionAlert).toBe(false);
+
+    const belowThreshold = compareDomesticAndImported({
+      domestic: { minePriceCnyPerMt: 620, narKcalPerKg: 6_000 },
+      imported: {
+        fobUsdPerMt: 70,
+        oceanFreightUsdPerMt: 10,
+        exchangeRateCnyPerUsd: 7,
+        narKcalPerKg: 4_000,
+      },
+      inversionAlertThresholdCnyPerMillionKcal: 1_000,
+    });
+    expect(belowThreshold.inversionAlert).toBe(false);
+  });
+
   it("recommends non-zero replenishment in the normal coverage band", () => {
     const result = recommendInventoryPosition({
       inventoryMt: 27_000,

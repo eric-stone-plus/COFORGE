@@ -212,8 +212,10 @@ export function isSettingsWritable() {
 }
 
 function currentPeriod() {
+  // UTC, matching the token ledger; legacy usage must compare equal here or
+  // the migration silently drops it around timezone month boundaries.
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function cleanString(value: unknown, fallback = "") {

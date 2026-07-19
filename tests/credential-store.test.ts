@@ -86,7 +86,10 @@ function settingsText() {
   return readFileSync(path.join(directory, "settings.json"), "utf8");
 }
 
-describe("desktop system credential store", () => {
+// These tests spawn the real Swift Keychain helper and perform real Keychain
+// I/O; under full-suite parallel load a single operation can exceed the
+// default 5s test timeout.
+describe("desktop system credential store", { timeout: 30_000 }, () => {
   it("keeps the future Windows bridge unavailable without a packaged hash pin", async () => {
     const { describeCredentialStore } = await import("../src/lib/credential-store");
     expect(describeCredentialStore("win32", helperPath, true, "")).toMatchObject({

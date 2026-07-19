@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { mkdirSync } from "fs";
+import { mkdirSync, renameSync } from "fs";
 import os from "os";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -45,16 +45,11 @@ function positiveInt(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback;
 }
 
-function getLedger() {
-  const requestedPath = resolveTokenLedgerPath();
-  if (ledger && requestedPath === ledgerPath) return ledger;
-  ledger?.close();
-  mkdirSync(path.dirname(requestedPath), { recursive: true, mode: 0o700 });
-  ledger = new Database(requestedPath);
-  ledgerPath = requestedPath;
-  ledger.pragma("journal_mode = WAL");
-  ledger.pragma("busy_timeout = 5000");
-  ledger.exec(`
+function openLedger(requestedPath: string) {
+  const db = new Database(requestedPath);
+  db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 5000");
+  db.exec(`
     CREATE TABLE IF NOT EXISTS token_usage (
       period TEXT PRIMARY KEY,
       prompt_tokens INTEGER NOT NULL DEFAULT 0 CHECK (prompt_tokens >= 0),
@@ -76,12 +71,42 @@ function getLedger() {
     );
     CREATE INDEX IF NOT EXISTS token_reservations_period_idx ON token_reservations(period);
   `);
-  const reservationColumns = ledger.prepare("PRAGMA table_info(token_reservations)").all() as Array<{ name: string }>;
+  const reservationColumns = db.prepare("PRAGMA table_info(token_reservations)").all() as Array<{ name: string }>;
   if (!reservationColumns.some((column) => column.name === "monthly_budget")) {
-    ledger.exec(`
+    db.exec(`
       ALTER TABLE token_reservations ADD COLUMN monthly_budget INTEGER NOT NULL DEFAULT ${DEFAULT_BUDGET};
     `);
   }
+  return db;
+}
+
+function getLedger() {
+  const requestedPath = resolveTokenLedgerPath();
+  if (ledger && requestedPath === ledgerPath) return ledger;
+  ledger?.close();
+  ledger = null;
+  mkdirSync(path.dirname(requestedPath), { recursive: true, mode: 0o700 });
+  try {
+    ledger = openLedger(requestedPath);
+  } catch (error) {
+    // A corrupted ledger file must not brick settings/chat; move it (and any
+    // WAL sidecars) aside and start a fresh ledger.
+    const stamp = Date.now();
+    try {
+      renameSync(requestedPath, `${requestedPath}.corrupt-${stamp}`);
+    } catch {
+      throw error;
+    }
+    for (const suffix of ["-wal", "-shm"]) {
+      try {
+        renameSync(`${requestedPath}${suffix}`, `${requestedPath}${suffix}.corrupt-${stamp}`);
+      } catch {
+        // Sidecars are optional; ignore.
+      }
+    }
+    ledger = openLedger(requestedPath);
+  }
+  ledgerPath = requestedPath;
   return ledger;
 }
 
@@ -193,7 +218,13 @@ export function settleTokenReservation(id: string, input: TokenUsageInput) {
       SELECT period, reserved_tokens, monthly_budget
       FROM token_reservations WHERE id = ?
     `).get(id) as { period: string; reserved_tokens: number; monthly_budget: number } | undefined;
-    if (!reservation) throw new Error("Token reservation was not found");
+    if (!reservation) {
+      // The reservation may have been reaped after an overlong provider call.
+      // The call still consumed budget, so record the usage against the
+      // current period instead of reporting the completed call as a failure.
+      if (usage.totalTokens) insertUsage(db, currentPeriod(), usage);
+      return;
+    }
     if (usage.totalTokens > reservation.reserved_tokens) {
       const excess = usage.totalTokens - reservation.reserved_tokens;
       db.prepare(`
@@ -205,7 +236,12 @@ export function settleTokenReservation(id: string, input: TokenUsageInput) {
     // flag any reservation overrun, and let future reservations enforce the cap.
     db.prepare("DELETE FROM token_reservations WHERE id = ?").run(id);
     if (!usage.totalTokens) return;
-    db.prepare(`
+    insertUsage(db, reservation.period, usage);
+  }).immediate();
+}
+
+function insertUsage(db: Database.Database, period: string, usage: ReturnType<typeof normalizedUsage>) {
+  db.prepare(`
       INSERT INTO token_usage(period, prompt_tokens, completion_tokens, total_tokens, request_count, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(period) DO UPDATE SET
@@ -215,14 +251,13 @@ export function settleTokenReservation(id: string, input: TokenUsageInput) {
         request_count = request_count + excluded.request_count,
         updated_at = excluded.updated_at
     `).run(
-      reservation.period,
-      usage.promptTokens,
-      usage.completionTokens,
-      usage.totalTokens,
-      usage.requestCount,
-      new Date().toISOString(),
-    );
-  }).immediate();
+    period,
+    usage.promptTokens,
+    usage.completionTokens,
+    usage.totalTokens,
+    usage.requestCount,
+    new Date().toISOString(),
+  );
 }
 
 export function releaseTokenReservation(id: string) {

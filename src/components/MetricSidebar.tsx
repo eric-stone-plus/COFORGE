@@ -43,7 +43,15 @@ function readMetrics(): SavedMetric[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(METRIC_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (m): m is SavedMetric =>
+        typeof m === "object" && m !== null &&
+        typeof (m as SavedMetric).name === "string" &&
+        typeof (m as SavedMetric).sql === "string",
+    );
   } catch { return []; }
 }
 
@@ -64,7 +72,9 @@ export default function MetricSidebar({
 
   useEffect(() => {
     let stored = readMetrics();
-    if (stored.length === 0 || !stored.some((m) => m.name === "在途船风险清单")) {
+    // Seed defaults only when the key was never initialized; an initialized
+    // (even empty) list belongs to the user and must not be overwritten.
+    if (typeof window !== "undefined" && localStorage.getItem(METRIC_STORAGE_KEY) === null) {
       writeMetrics(DEFAULT_METRICS);
       stored = DEFAULT_METRICS;
     }
@@ -99,7 +109,7 @@ export default function MetricSidebar({
                 onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-hover)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                 <button onClick={() => onRunMetric(m)} className="flex-1 truncate text-left text-sm">{m.name}</button>
-                <button onClick={() => handleDelete(m.name)} className="ml-2 text-xs opacity-0 transition-default group-hover:opacity-50 hover:!opacity-100" style={{ color: "var(--error)" }}>×</button>
+                <button onClick={() => handleDelete(m.name)} aria-label={`删除指标 ${m.name}`} className="ml-2 text-xs opacity-0 transition-default group-hover:opacity-50 group-focus-within:opacity-50 focus:opacity-100 hover:!opacity-100" style={{ color: "var(--error)" }}>×</button>
               </li>
             ))}
           </ul>

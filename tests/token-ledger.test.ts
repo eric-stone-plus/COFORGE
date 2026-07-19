@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "fs";
+import Database from "better-sqlite3";
+import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import {
@@ -46,7 +47,19 @@ describe("atomic token ledger", () => {
     settleTokenReservation(id, { promptTokens: 20, completionTokens: 30, totalTokens: 50 });
     const snapshot = getTokenLedgerSnapshot();
     expect(snapshot).toMatchObject({ promptTokens: 20, completionTokens: 30, totalTokens: 50, requestCount: 1, reservedTokens: 0 });
-    expect(() => settleTokenReservation(id, { totalTokens: 5 })).toThrow(/not found/);
+  });
+
+  it("still accounts usage when the reservation expired during a long provider call", () => {
+    const id = reserveTokenBudget(80, 100);
+    // Backdate the reservation past the TTL and let cleanup reap it.
+    const db = new Database(process.env.COFORGE_TOKEN_LEDGER_PATH as string);
+    db.prepare("UPDATE token_reservations SET created_at = ? WHERE id = ?")
+      .run(Date.now() - 11 * 60_000, id);
+    db.close();
+    expect(getTokenLedgerSnapshot().reservedTokens).toBe(0);
+
+    expect(() => settleTokenReservation(id, { totalTokens: 42 })).not.toThrow();
+    expect(getTokenLedgerSnapshot().totalTokens).toBe(42);
   });
 
   it("records provider-reported overrun exactly and blocks future reservations", () => {
@@ -66,5 +79,12 @@ describe("atomic token ledger", () => {
     settleTokenReservation(first, { totalTokens: 40 });
     settleTokenReservation(second, { totalTokens: 60 });
     expect(getTokenLedgerSnapshot()).toMatchObject({ totalTokens: 100, reservedTokens: 0 });
+  });
+
+  it("recovers from a corrupted ledger file by moving it aside", () => {
+    closeTokenLedgerForTests();
+    writeFileSync(process.env.COFORGE_TOKEN_LEDGER_PATH as string, "not a sqlite database");
+    expect(() => getTokenLedgerSnapshot()).not.toThrow();
+    expect(getTokenLedgerSnapshot().totalTokens).toBe(0);
   });
 });
