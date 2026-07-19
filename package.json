@@ -22,9 +22,9 @@
     "verify": "npm run check:public && npm run verify:reasonix && npm run lint && npm run typecheck && npm test && npm run build && npm run licenses:generate && npm run licenses:verify"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.12",
-    "@ai-sdk/openai-compatible": "^3.0.7",
-    "ai": "^7.0.22",
+    "@ai-sdk/anthropic": "^4.0.16",
+    "@ai-sdk/openai-compatible": "^3.0.12",
+    "ai": "^7.0.31",
     "better-sqlite3": "^12.11.1",
     "next": "^15.5.20",
     "node-sql-parser": "^5.4.0",
