@@ -13,4 +13,17 @@ Resources/licenses/Reasonix-LICENSE.
 The macOS desktop distribution also bundles Node.js. Its upstream license
 text is distributed as Resources/licenses/Node-LICENSE.
 
+The web interface bundles the DM Sans variable font (Latin subsets) as
+self-hosted WOFF2 files under public/fonts/, sourced from the
+@fontsource-variable/dm-sans npm package. DM Sans is licensed under the
+SIL Open Font License, Version 1.1: Copyright 2014 The DM Sans Project
+Authors (https://github.com/googlefonts/dm-fonts). The full license text
+is distributed as licenses/DM-Sans-OFL.txt.
+
+The 2026-07-19 interface refresh references the visual language of
+T3 Code (https://github.com/pingdotgg/t3code): neutral alpha-based
+surface tokens and the SVG grain texture data URL are adapted from that
+project. T3 Code is Copyright (c) 2026 T3 Tools Inc. and is licensed
+under the MIT License.
+
 Development of COFORGE includes contributions made with OpenAI Codex.

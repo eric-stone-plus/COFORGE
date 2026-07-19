@@ -11,7 +11,7 @@ import LocalSettingsPanel from "@/components/LocalSettingsPanel";
 import MetricSidebar, { SavedMetric } from "@/components/MetricSidebar";
 import type { DashboardSummary, ModuleSummary } from "@/lib/co-modules";
 
-const COLORS = ["#2f81f7", "#3fb950", "#d29922", "#f85149", "#a371f7", "#39c5cf", "#f0883e", "#8b949e"];
+const COLORS = ["#4e8cff", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#22d3ee", "#fb923c", "#a1a1aa"];
 
 function KpiCard({ label, value, icon, sub }: { label: string; value: string; icon: string; sub?: string }) {
   return (
@@ -253,7 +253,7 @@ function WorkbenchSidebar({
     <aside className="hidden w-[310px] shrink-0 flex-col border-r lg:flex" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="border-b px-4 py-4" style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(135deg, #2f81f7, #3fb950)" }}>CO</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(135deg, #3b7bfd, #7a5af8)" }}>CO</div>
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold" style={{ color: "var(--text)" }}>COFORGE</h1>
             <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>煤炭运营工具包</p>
@@ -499,7 +499,7 @@ export default function Home() {
       <div className="flex min-h-0 flex-1 flex-col lg:overflow-hidden">
         <header className="sticky top-0 z-20 flex flex-col gap-3 border-b px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:static lg:px-6" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--surface) 92%, transparent)" }}>
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white lg:hidden" style={{ background: "linear-gradient(135deg, #2f81f7, #3fb950)" }}>CO</div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold text-white lg:hidden" style={{ background: "linear-gradient(135deg, #3b7bfd, #7a5af8)" }}>CO</div>
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold" style={{ color: "var(--text)" }}>煤炭运营智能分析工作台</h1>
               <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>{activeModule.name} · {activeModule.title}</p>
@@ -588,7 +588,7 @@ export default function Home() {
                       <XAxis dataKey="month" tick={{ fontSize: 9, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} />
                       <YAxis tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 12 }} />
-                      <Area type="monotone" dataKey="index_value" stroke="#2f81f7" fill="#1f6feb33" strokeWidth={2} />
+                      <Area type="monotone" dataKey="index_value" stroke="#4e8cff" fill="rgba(78,140,255,.18)" strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartCard>
@@ -601,7 +601,7 @@ export default function Home() {
                         <XAxis type="number" tick={{ fontSize: 9, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} />
                         <YAxis type="category" dataKey="route" tick={{ fontSize: 9, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} width={72} />
                         <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 11 }} />
-                        <Bar dataKey="rate" fill="#3fb950" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="rate" fill="#34d399" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -665,7 +665,7 @@ export default function Home() {
                         <XAxis dataKey="plan" tick={{ fontSize: 9, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} />
                         <YAxis tick={{ fontSize: 9, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} />
                         <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 11 }} />
-                        <Bar dataKey="cost" fill="#a371f7" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="cost" fill="#a78bfa" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>

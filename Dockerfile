@@ -30,6 +30,7 @@ RUN groupadd --gid 10001 coforge \
     && rm -rf /var/lib/apt/lists/* /tmp/*
 COPY --from=builder --chown=root:root /app/.next/standalone ./
 COPY --from=builder --chown=root:root /app/.next/static ./.next/static
+COPY --from=builder --chown=root:root /app/public ./public
 COPY --from=builder --chown=root:root /app/data/coal-demo.db ./data/coal-demo.db
 COPY --from=builder --chown=root:root /app/LICENSE /app/NOTICE ./licenses/
 COPY --from=builder --chown=root:root /app/artifacts/licenses/third-party ./licenses/third-party

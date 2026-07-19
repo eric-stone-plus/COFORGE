@@ -2,60 +2,85 @@
 @tailwind components;
 @tailwind utilities;
 
+/* COFORGE design tokens — neutral minimal chrome in the spirit of the
+   T3 Code workbench (MIT, T3 Tools Inc.; see NOTICE). Variable names are
+   stable: components consume only the tokens below. */
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("/fonts/dm-sans-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "DM Sans Variable";
+  font-style: normal;
+  font-weight: 100 1000;
+  font-display: swap;
+  src: url("/fonts/dm-sans-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-hover: #1c2128;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
-  --accent: #58a6ff;
-  --accent-soft: #0d2240;
-  --success: #3fb950;
-  --success-soft: #0f2d16;
-  --warning: #d29922;
-  --warning-soft: #2e1e00;
-  --error: #f85149;
-  --error-soft: #3d1214;
+  --bg: #0a0a0b;
+  --surface: #131316;
+  --surface-hover: rgba(255, 255, 255, .045);
+  --border: rgba(255, 255, 255, .07);
+  --text: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #6d6d75;
+  --accent: #4e8cff;
+  --accent-soft: rgba(78, 140, 255, .14);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, .12);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, .12);
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, .12);
+  --brand-gradient: linear-gradient(135deg, #3b7bfd, #7a5af8);
+  --grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --bg: #fafbfc;
+  --bg: #f4f4f5;
   --surface: #ffffff;
-  --surface-hover: #f6f8fa;
-  --border: #e1e4e8;
-  --text: #24292f;
-  --text-secondary: #656d76;
-  --text-muted: #8b949e;
-  --accent: #0969da;
-  --accent-soft: #ddf4ff;
-  --success: #1a7f37;
-  --success-soft: #dafbe1;
-  --warning: #9a6700;
-  --warning-soft: #fff8c5;
-  --error: #cf222e;
-  --error-soft: #ffebe9;
+  --surface-hover: rgba(0, 0, 0, .035);
+  --border: rgba(0, 0, 0, .08);
+  --text: #27272a;
+  --text-secondary: #52525b;
+  --text-muted: #8e8e96;
+  --accent: #2f66e8;
+  --accent-soft: rgba(47, 102, 232, .10);
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, .10);
+  --warning: #b45309;
+  --warning-soft: rgba(180, 83, 9, .10);
+  --error: #dc2626;
+  --error-soft: rgba(220, 38, 38, .10);
+  --brand-gradient: linear-gradient(135deg, #3b7bfd, #7a5af8);
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --bg: #0d1117;
-  --surface: #161b22;
-  --surface-hover: #1c2128;
-  --border: #30363d;
-  --text: #e6edf3;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
-  --accent: #58a6ff;
-  --accent-soft: #0d2240;
-  --success: #3fb950;
-  --success-soft: #0f2d16;
-  --warning: #d29922;
-  --warning-soft: #2e1e00;
-  --error: #f85149;
-  --error-soft: #3d1214;
+  --bg: #0a0a0b;
+  --surface: #131316;
+  --surface-hover: rgba(255, 255, 255, .045);
+  --border: rgba(255, 255, 255, .07);
+  --text: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #6d6d75;
+  --accent: #4e8cff;
+  --accent-soft: rgba(78, 140, 255, .14);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, .12);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, .12);
+  --error: #f87171;
+  --error-soft: rgba(248, 113, 113, .12);
+  --brand-gradient: linear-gradient(135deg, #3b7bfd, #7a5af8);
   color-scheme: dark;
 }
 
@@ -63,8 +88,9 @@
 
 body {
   background: var(--bg);
+  background-image: var(--grain, none);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  font-family: "DM Sans Variable", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
